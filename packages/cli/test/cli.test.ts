@@ -172,6 +172,76 @@ describe('agent-mem cli', () => {
     expect(report.problems.length + report.shareIssues.length).toBeGreaterThan(0);
   });
 
+  it('adds, lists and removes a custom agent', async () => {
+    const env = await withHome();
+    const home = path.join(env.home, '.deepseek');
+    fs.mkdirSync(home, { recursive: true });
+    fs.writeFileSync(path.join(home, 'AGENTS.md'), '# DeepSeek rules\n');
+
+    const add = capture();
+    expect(await run(['agents', 'add', 'deepseek', '--display', 'DeepSeek harness', '--home', '~/.deepseek', '--project-file', 'AGENTS.md'], add.io)).toBe(0);
+    expect(add.text().out).toContain('Added agent "deepseek"');
+
+    const list = capture();
+    expect(await run(['agents'], list.io)).toBe(0);
+    expect(list.text().out).toContain('deepseek');
+    expect(list.text().out).toContain('DeepSeek harness');
+
+    const memories = capture();
+    await run(['ls', '--json', '-p', env.project], memories.io);
+    const json = JSON.parse(memories.text().out) as { memories: { agent: string }[] };
+    expect(json.memories.some((m) => m.agent === 'deepseek')).toBe(true);
+
+    expect(await run(['agents', 'remove', 'deepseek'], capture().io)).toBe(0);
+    const builtin = capture();
+    expect(await run(['agents', 'remove', 'codex'], builtin.io)).toBe(1);
+    expect(builtin.text().err).toContain('built in');
+  });
+
+  it('cleans orphan backup snapshots', async () => {
+    const env = await withHome();
+    // Produce a real backup: its snapshot file is still referenced by the journal.
+    const tmp = path.join(env.root, 'new-content.md');
+    fs.writeFileSync(tmp, '# replaced\n');
+    expect(await run(['edit', 'claude:CLAUDE.md', '-p', env.project, '--file', tmp], capture().io)).toBe(0);
+    const files = path.join(env.dataDir, 'backups', 'files');
+    expect(fs.readdirSync(files)).toHaveLength(1);
+
+    const none = capture();
+    expect(await run(['clean'], none.io)).toBe(0);
+    expect(none.text().out).toContain('Nothing to clean');
+
+    // Drop the journal entry: the snapshot becomes an orphan doctor warns about.
+    const { writeState } = await import('@agent-mem/core');
+    await writeState(env.ctx, 'backups/journal.json', []);
+    const doctor = capture();
+    expect(await run(['doctor'], doctor.io)).toBe(1);
+    expect(doctor.text().out).toContain('orphan backup');
+
+    const clean = capture();
+    expect(await run(['clean', '--yes'], clean.io)).toBe(0);
+    expect(clean.text().out).toContain('Deleted 1 file');
+    expect(fs.readdirSync(files)).toHaveLength(0);
+    expect(await run(['doctor'], capture().io)).toBe(0);
+  });
+
+  it('exports a project bundle and imports it into another directory', async () => {
+    const env = await withHome();
+    const bundleFile = path.join(env.root, 'bundle.json');
+    const cap = capture();
+    expect(await run(['export', '-p', env.project, '-o', bundleFile], cap.io)).toBe(0);
+    expect(cap.text().out).toContain('Wrote');
+    const bundle = JSON.parse(fs.readFileSync(bundleFile, 'utf8')) as { items: { relPath: string }[] };
+    expect(bundle.items.some((i) => i.relPath === 'CLAUDE.md')).toBe(true);
+
+    const target = path.join(env.root, 'work', 'migrated');
+    fs.mkdirSync(target, { recursive: true });
+    const imp = capture();
+    expect(await run(['import', bundleFile, '-p', target, '--yes'], imp.io)).toBe(0);
+    expect(fs.readFileSync(path.join(target, 'CLAUDE.md'), 'utf8')).toBe(fs.readFileSync(path.join(env.project, 'CLAUDE.md'), 'utf8'));
+    expect(fs.readFileSync(path.join(target, 'AGENTS.md'), 'utf8')).toContain('shop-api agent guide');
+  });
+
   it('fails clearly for an unknown memory', async () => {
     const { project } = await withHome();
     const cap = capture();

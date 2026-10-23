@@ -61,7 +61,12 @@ pnpm ui -- --demo --no-open
 
 ```bash
 agent-mem agents                   # 支持的 agent 及安装状态
-agent-mem doctor                   # 体检：agent 检测、数据目录、share 一致性
+agent-mem agents add <id> ...      # 注册自定义 agent（--display --home --project-file --imports）
+agent-mem agents remove <id>       # 移除自定义 agent（内置 agent 不可移除）
+agent-mem doctor                   # 体检：agent 检测、数据目录、share 一致性、孤儿备份
+agent-mem clean                    # 删除历史已不引用的备份快照
+agent-mem export -p . -o mem.json  # 项目记忆打包（含 share 关系）
+agent-mem import mem.json -p ~/code/shop-api   # 恢复到另一个目录/机器
 agent-mem ls                       # 发现到的项目
 agent-mem ls -p ~/code/shop-api    # 这个项目下的全部记忆
 agent-mem search <text> -p .       # 按标题/路径/内容搜记忆（含行号，--json 可选）

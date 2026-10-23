@@ -35,6 +35,8 @@ const AGENT_ALIASES: Record<string, AgentId> = {
   oc: 'opencode',
 };
 
+const BUILTIN_AGENT_IDS = ['claude-code', 'codex', 'pi', 'gemini', 'cursor', 'opencode'];
+
 export class Hub {
   private constructor(
     readonly ctx: Context,
@@ -92,6 +94,27 @@ export class Hub {
     if (!st?.isDirectory()) throw new Error(`Not a directory: ${abs}`);
     const config = await readConfig(this.ctx);
     config.projects = [...new Set([...(config.projects ?? []), abs])];
+    await writeState(this.ctx, 'config.json', config);
+  }
+
+  /** Register a config-only agent; replaces an existing custom agent with the same id. */
+  async addAgent(spec: DeclarativeAgentSpec): Promise<void> {
+    if (!/^[a-z][a-z0-9-]*$/.test(spec.id)) throw new Error('Agent id must be lowercase letters, digits and dashes (e.g. "deepseek")');
+    if (!spec.displayName.trim()) throw new Error('displayName is required');
+    if (!spec.homeDir.trim()) throw new Error('homeDir is required, e.g. ~/.deepseek');
+    if (spec.projectFiles.length === 0) throw new Error('Pass at least one project file name');
+    if (BUILTIN_AGENT_IDS.includes(spec.id)) throw new Error(`"${spec.id}" is a built-in agent and cannot be redefined`);
+    const config = await readConfig(this.ctx);
+    config.agents = [...(config.agents ?? []).filter((a) => a.id !== spec.id), spec];
+    await writeState(this.ctx, 'config.json', config);
+  }
+
+  async removeAgent(id: string): Promise<void> {
+    if (BUILTIN_AGENT_IDS.includes(id)) throw new Error(`"${id}" is built in and cannot be removed`);
+    const config = await readConfig(this.ctx);
+    const remaining = (config.agents ?? []).filter((a) => a.id !== id);
+    if (remaining.length === (config.agents ?? []).length) throw new Error(`No custom agent "${id}" in ${path.join(this.ctx.dataDir, 'config.json')}`);
+    config.agents = remaining;
     await writeState(this.ctx, 'config.json', config);
   }
 

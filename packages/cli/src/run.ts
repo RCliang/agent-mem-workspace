@@ -10,16 +10,22 @@ import {
   applyPlan,
   createContext,
   expandHome,
+  exportBundle,
   listBackups,
   listShares,
+  orphanBackupCount,
+  planImportBundle,
   planShare,
   planTransfer,
   planUnshare,
+  pruneBackups,
+  registerImportedShares,
   safeWrite,
   syncShares,
   tildify,
   undoBackup,
   type Context,
+  type MemoryBundle,
   type MemoryItem,
   type Plan,
   type ShareStrategy,
@@ -117,6 +123,10 @@ function splitAgents(list: string): string[] {
   const ids = list.split(',').map((s) => s.trim()).filter(Boolean);
   if (ids.length === 0) throw new Error('Pass at least one agent to --to');
   return ids;
+}
+
+function collect(value: string, previous: string[]): string[] {
+  return [...previous, value];
 }
 
 function addLocate(cmd: Command) {
@@ -304,9 +314,38 @@ export function buildProgram(io: Io): Command {
     }
   });
 
-  program
+  const agentsCmd = program
     .command('agents')
-    .description('List the coding agents agent-mem knows about and whether each is installed')
+    .description('List the coding agents agent-mem knows about, or manage custom ones');
+  agentsCmd
+    .command('add <id>')
+    .description('Register a config-only agent that reads Markdown files')
+    .requiredOption('--display <name>', 'name shown in the UI')
+    .requiredOption('--home <dir>', 'directory whose existence means the agent is installed, e.g. ~/.deepseek')
+    .option('--global-file <file>', 'global instruction file (default: <home>/AGENTS.md)')
+    .option('--project-file <name>', 'instruction file name inside a project; repeatable', collect, [])
+    .option('--imports', 'the agent understands @path imports')
+    .action(async (id: string, opts: { display: string; home: string; globalFile?: string; projectFile: string[]; imports?: boolean }) => {
+      const hub = await openHub();
+      await hub.addAgent({
+        id,
+        displayName: opts.display,
+        homeDir: opts.home,
+        globalFile: opts.globalFile,
+        projectFiles: opts.projectFile.length ? opts.projectFile : ['AGENTS.md'],
+        imports: opts.imports ?? false,
+      });
+      io.stdout(`Added agent "${id}". It appears in \`agent-mem agents\` and the web UI once ${opts.home} exists.\n`);
+    });
+  agentsCmd
+    .command('remove <id>')
+    .description('Remove a custom agent (built-in agents cannot be removed)')
+    .action(async (id: string) => {
+      const hub = await openHub();
+      await hub.removeAgent(id);
+      io.stdout(`Removed agent "${id}".\n`);
+    });
+  agentsCmd
     .option('--json', 'print JSON')
     .action(async (opts: { json?: boolean }) => {
       const hub = await openHub();
@@ -318,7 +357,7 @@ export function buildProgram(io: Io): Command {
       for (const a of agents) {
         io.stdout(`${a.id.padEnd(14)} ${(a.detected ? 'installed' : 'missing').padEnd(10)} ${a.displayName.padEnd(14)} ${a.capabilities.imports ? '@imports' : 'inline'}\n`);
       }
-      io.stdout('\nHide a column for an agent in the web UI, or add custom agents in ~/.agent-mem/config.json.\n');
+      io.stdout('\nHide a column for an agent in the web UI, or run `agent-mem agents add` to register a custom one.\n');
     });
 
   program
@@ -335,8 +374,10 @@ export function buildProgram(io: Io): Command {
       );
       const shares = await listShares(hub.ctx);
       const backups = await listBackups(hub.ctx);
+      const orphans = await orphanBackupCount(hub.ctx);
       const problems: string[] = [];
       if (!dataWritable) problems.push(`data directory is not writable: ${hub.ctx.dataDir}`);
+      if (orphans > 0) problems.push(`${orphans} orphan backup file${orphans === 1 ? '' : 's'} (run \`agent-mem clean\`)`);
       const shareIssues: string[] = [];
       for (const s of shares) {
         if ((await fs.stat(s.sourcePath).catch(() => null)) == null) shareIssues.push(`share ${s.id}: source missing ${tildify(hub.ctx, s.sourcePath)}`);
@@ -364,10 +405,69 @@ export function buildProgram(io: Io): Command {
         if (shares.length === 0) io.stdout('  --  nothing shared yet\n');
         for (const s of shares) io.stdout(`  ok  ${s.id}  ${s.strategy}  ${s.sourceAgent} -> ${s.targetAgent}\n`);
         for (const issue of shareIssues) io.stdout(`  !!  ${issue}\n`);
+        io.stdout(`\nBackups\n`);
+        io.stdout(`  ${orphans === 0 ? 'ok  ' : '!!  '}${orphans} orphan backup file${orphans === 1 ? '' : 's'} on disk${orphans ? ' (run `agent-mem clean`)' : ''}\n`);
         io.stdout(`\n${problems.length === 0 ? 'No problems found.' : `${problems.length} problem${problems.length === 1 ? '' : 's'} found:`}\n`);
         for (const p of problems) io.stdout(`  !!  ${p}\n`);
       }
       if (problems.length) throw new Exit(1);
+    });
+
+  addLocate(
+    program
+      .command('export')
+      .description('Write this project\'s memory files (and their share links) to a portable JSON bundle')
+      .requiredOption('-o, --out <file>', 'output file, or - for stdout'),
+  ).action(async (opts: LocateOpts & { out: string }) => {
+    const hub = await openHub();
+    const project = await locate(hub, opts, 'required');
+    if (!project) throw new Error('Exports are per project. Pass --project.');
+    const bundle = await exportBundle(hub, project);
+    const json = `${JSON.stringify(bundle, null, 2)}\n`;
+    if (opts.out === '-') io.stdout(json);
+    else {
+      await fs.writeFile(opts.out, json);
+      io.stdout(`Wrote ${bundle.items.length} memories and ${bundle.shares.length} share records to ${opts.out}.\n`);
+    }
+  });
+
+  program
+    .command('import')
+    .description('Restore a bundle produced by `agent-mem export` into a project directory')
+    .argument('<file>', 'bundle file, or - for stdin')
+    .requiredOption('-p, --project <path>', 'project directory to restore into')
+    .option('-y, --yes', 'apply without asking')
+    .action(async (file: string, opts: { project: string; yes?: boolean }) => {
+      const hub = await openHub();
+      const project = await locate(hub, { project: opts.project }, 'required');
+      const text = file === '-' ? await readStdin(io) : await fs.readFile(file, 'utf8');
+      let bundle: MemoryBundle;
+      try {
+        bundle = JSON.parse(text) as MemoryBundle;
+      } catch (e) {
+        throw new Error(`Not a valid bundle file: ${(e as Error).message}`);
+      }
+      const { plan, shares } = await planImportBundle(hub, bundle, project!);
+      await commit(io, hub, [plan], opts.yes);
+      await registerImportedShares(hub, shares);
+      if (shares.length) io.stdout(`Restored ${shares.length} share record${shares.length === 1 ? '' : 's'}.\n`);
+    });
+
+  program
+    .command('clean')
+    .description('Delete backup snapshots the history no longer references')
+    .option('-y, --yes', 'delete without asking')
+    .action(async (opts: { yes?: boolean }) => {
+      const hub = await openHub();
+      const orphans = await orphanBackupCount(hub.ctx);
+      if (orphans === 0) {
+        io.stdout('Nothing to clean: every backup snapshot is still referenced by the history.\n');
+        return;
+      }
+      io.stdout(`Deleting ${orphans} orphan backup file${orphans === 1 ? '' : 's'} under ${path.join(tildify(hub.ctx, hub.ctx.dataDir), 'backups', 'files')}.\n`);
+      if (!(await confirm(io, opts.yes))) throw new Exit(2);
+      const { removedFiles } = await pruneBackups(hub.ctx);
+      io.stdout(`Deleted ${removedFiles.length} file${removedFiles.length === 1 ? '' : 's'}.\n`);
     });
 
   program

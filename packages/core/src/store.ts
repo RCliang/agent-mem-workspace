@@ -95,6 +95,30 @@ export async function currentHash(filePath: string): Promise<string | null> {
   return text == null ? null : sha(text);
 }
 
+/** Remove backup snapshots the journal no longer references (entries are capped at 500). */
+export async function pruneBackups(ctx: Context): Promise<{ removedFiles: string[] }> {
+  const journal = await listBackups(ctx);
+  const referenced = new Set(journal.flatMap((e) => (e.backupPath ? [e.backupPath] : [])));
+  const dir = path.join(ctx.dataDir, 'backups', 'files');
+  const removedFiles: string[] = [];
+  for (const name of await fs.readdir(dir).catch(() => [] as string[])) {
+    const full = path.join(dir, name);
+    if (!referenced.has(full)) {
+      await fs.rm(full, { force: true });
+      removedFiles.push(full);
+    }
+  }
+  return { removedFiles };
+}
+
+export async function orphanBackupCount(ctx: Context): Promise<number> {
+  const journal = await listBackups(ctx);
+  const referenced = new Set(journal.flatMap((e) => (e.backupPath ? [e.backupPath] : [])));
+  const dir = path.join(ctx.dataDir, 'backups', 'files');
+  const names = await fs.readdir(dir).catch(() => [] as string[]);
+  return names.filter((n) => !referenced.has(path.join(dir, n))).length;
+}
+
 export interface WriteOptions {
   /** Hash the caller last saw; `null` means "expect the file to be absent". Omit to skip the check. */
   expectedHash?: string | null;
