@@ -73,6 +73,8 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
 
   const api = new Hono();
 
+  api.get('/info', (c) => c.json({ home: hub.ctx.home, dataDir: hub.ctx.dataDir, llm: !!hub.ctx.env.AGENT_MEM_LLM_API_KEY }));
+
   api.get('/agents', async (c) => c.json(await hub.agents()));
 
   api.get('/projects', async (c) => c.json(await hub.projects()));
@@ -158,6 +160,7 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
   api.post('/undo', async (c) => {
     const { id } = await c.req.json<{ id?: string }>().catch(() => ({ id: undefined }));
     const entry = await undoBackup(hub.ctx, id);
+    await syncShares(hub, entry.filePath);
     bus.emit({ type: 'applied', files: [entry.filePath] });
     return c.json({ ...entry, hash: await currentHash(entry.filePath) });
   });

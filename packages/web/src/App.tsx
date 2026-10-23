@@ -1,0 +1,237 @@
+import { History as HistoryIcon, LayoutGrid, RefreshCw, Table2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, subscribe, type AgentSummary, type BackupEntry, type Info, type MatrixRow, type MemoryItem, type ProjectInfo, type ShareStrategy } from './api';
+import { Board } from './components/Board';
+import { EditorDrawer } from './components/EditorDrawer';
+import { History } from './components/History';
+import { Matrix } from './components/Matrix';
+import { PlanDialog, type PlanRequest } from './components/PlanDialog';
+import { SessionDrawer } from './components/SessionDrawer';
+import { Sidebar } from './components/Sidebar';
+import { useToast } from './components/Toasts';
+import { Button, cx, InfoContext } from './ui';
+
+type View = 'board' | 'matrix' | 'history';
+
+const VIEWS: { id: View; label: string; icon: typeof LayoutGrid }[] = [
+  { id: 'board', label: 'Board', icon: LayoutGrid },
+  { id: 'matrix', label: 'Share matrix', icon: Table2 },
+  { id: 'history', label: 'History', icon: HistoryIcon },
+];
+
+const STORAGE_KEY = 'agent-mem:project';
+
+export function App() {
+  const [info, setInfo] = useState<Info>({ home: '', dataDir: '', llm: false });
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [project, setProject] = useState<string | null | undefined>(undefined);
+  const [view, setView] = useState<View>('board');
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
+  const [matrix, setMatrix] = useState<MatrixRow[]>([]);
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [plan, setPlan] = useState<PlanRequest | null>(null);
+  const [live, setLive] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const toast = useToast();
+
+  useEffect(() => {
+    Promise.all([api.info(), api.agents(), api.projects()])
+      .then(([i, a, p]) => {
+        setInfo(i);
+        setAgents(a);
+        setProjects(p);
+        const saved = localStorage.getItem(STORAGE_KEY);
+        setProject(saved === '' ? null : saved && p.some((x) => x.path === saved) ? saved : (p[0]?.path ?? null));
+      })
+      .catch((e: Error) => setLoadError(e.message));
+  }, []);
+
+  const reload = useCallback(async () => {
+    if (project === undefined) return;
+    try {
+      const [m, rows, b] = await Promise.all([api.memories(project), api.matrix(project), api.backups()]);
+      setMemories(m);
+      setMatrix(rows);
+      setBackups(b);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError((e as Error).message);
+    }
+  }, [project]);
+
+  useEffect(() => {
+    void reload();
+    if (project !== undefined) localStorage.setItem(STORAGE_KEY, project ?? '');
+  }, [reload, project]);
+
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    return subscribe(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        void reloadRef.current();
+        void api.projects().then(setProjects);
+      }, 150);
+    }, setLive);
+  }, []);
+
+  const openItem = useMemo(() => memories.find((m) => m.id === openId) ?? null, [memories, openId]);
+  const current = projects.find((p) => p.path === project);
+
+  const openTransfer = useCallback(
+    (item: MemoryItem, targetAgent: string) =>
+      setPlan({ load: ({ llm }) => api.previewTransfer(project ?? null, item.id, targetAgent, llm), llmToggle: item.kind === 'session' }),
+    [project],
+  );
+  const openShare = useCallback(
+    (item: MemoryItem, targetAgent: string, strategy?: ShareStrategy) => setPlan({ load: () => api.previewShare(project ?? null, item.id, targetAgent, strategy) }),
+    [project],
+  );
+
+  async function createInstructions(agent: string) {
+    try {
+      const res = await api.createMemory(agent, project ?? null);
+      await reload();
+      const created = (await api.memories(project ?? null)).find((m) => m.filePath === res.filePath && m.agent === agent);
+      if (created) setOpenId(created.id);
+    } catch (e) {
+      toast({ tone: 'error', message: (e as Error).message });
+    }
+  }
+
+  async function syncNow() {
+    try {
+      const res = await api.sync();
+      toast({ tone: 'ok', message: res.updated.length ? `Refreshed ${res.updated.length} synced cop${res.updated.length === 1 ? 'y' : 'ies'}.` : 'All shared copies are up to date.' });
+      await reload();
+    } catch (e) {
+      toast({ tone: 'error', message: (e as Error).message });
+    }
+  }
+
+  return (
+    <InfoContext.Provider value={info}>
+      <div className="flex h-full flex-col">
+        <header className="flex h-12 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-900 px-4">
+          <div className="flex w-[232px] items-center gap-2">
+            <img src="/favicon.svg" alt="" className="size-6" />
+            <span className="text-[15px] font-semibold tracking-tight">agent-mem</span>
+          </div>
+          <label className="min-w-0 flex-1 lg:hidden">
+            <span className="sr-only">Project</span>
+            <select
+              className="h-8 w-full max-w-56 truncate rounded-md border border-ink-600 bg-ink-950 px-2 text-[13px]"
+              value={project ?? ''}
+              onChange={(e) => {
+                setProject(e.target.value || null);
+                setOpenId(null);
+              }}
+            >
+              <option value="">Global memory</option>
+              {projects.map((p) => (
+                <option key={p.path} value={p.path}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="hidden min-w-0 flex-1 lg:block">
+            <p className="truncate text-[14px] font-medium">{project === null ? 'Global memory' : (current?.name ?? '')}</p>
+          </div>
+          <nav className="flex items-center gap-1 rounded-lg bg-ink-950 p-1" aria-label="Views">
+            {VIEWS.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                aria-current={view === v.id ? 'page' : undefined}
+                onClick={() => setView(v.id)}
+                className={cx(
+                  'inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors',
+                  view === v.id ? 'bg-ink-700 text-paper' : 'text-paper-dim hover:text-paper',
+                )}
+              >
+                <v.icon className="size-3.5" /> <span className="hidden sm:inline">{v.label}</span>
+              </button>
+            ))}
+          </nav>
+          <Button variant="quiet" onClick={syncNow} title="Re-copy shared memories whose source changed">
+            <RefreshCw className="size-3.5" /> Sync
+          </Button>
+          <span className="flex items-center gap-1.5 text-[12px] text-paper-mute" title={live ? 'Watching memory files for changes' : 'Not connected to the agent-mem server'}>
+            <span className={cx('size-2 rounded-full', live ? 'bg-ok [animation:pulse-dot_2.4s_ease-in-out_infinite]' : 'bg-danger')} />
+            {live ? 'Live' : 'Offline'}
+          </span>
+        </header>
+
+        <div className="relative flex min-h-0 flex-1">
+          <Sidebar
+            className="hidden lg:flex"
+            projects={projects}
+            selected={project ?? null}
+            onSelect={(p) => {
+              setProject(p);
+              setOpenId(null);
+            }}
+            onProjectsChange={setProjects}
+          />
+          <main className="min-w-0 flex-1 overflow-hidden">
+            {project === undefined && !loadError && <div className="m-5 h-40 animate-pulse rounded-xl bg-ink-800" />}
+            {loadError && <p className="m-5 rounded-lg border border-danger/40 bg-danger/8 px-4 py-3 text-[13px] text-danger">Could not load data: {loadError}</p>}
+            {project !== undefined && view === 'board' && <Board agents={agents} memories={memories} project={project} onOpen={(m) => setOpenId(m.id)} onDrop={openTransfer} onCreate={createInstructions} />}
+            {project !== undefined && view === 'matrix' && (
+              <Matrix
+                agents={agents}
+                rows={matrix}
+                onShare={openShare}
+                onUnshare={(id) => setPlan({ load: () => api.previewUnshare(id) })}
+                onOpen={(m) => {
+                  setOpenId(m.id);
+                }}
+              />
+            )}
+            {project !== undefined && view === 'history' && (
+              <History
+                entries={backups}
+                onUndo={(id) =>
+                  void api
+                    .undo(id)
+                    .then((e) => toast({ tone: 'ok', message: `Restored ${e.filePath}` }))
+                    .catch((e: Error) => toast({ tone: 'error', message: e.message }))
+                    .finally(reload)
+                }
+              />
+            )}
+          </main>
+          {openItem && openItem.kind !== 'session' && (
+            <EditorDrawer
+              key={openItem.id}
+              className="absolute inset-0 z-20 w-full lg:static lg:z-auto lg:w-[min(720px,52vw)]"
+              item={openItem}
+              project={project ?? null}
+              agents={agents}
+              onClose={() => setOpenId(null)}
+              onSaved={reload}
+              onShare={(item, agent) => openShare(item, agent)}
+            />
+          )}
+          {openItem && openItem.kind === 'session' && (
+            <SessionDrawer
+              key={openItem.id}
+              className="absolute inset-0 z-20 w-full lg:static lg:z-auto lg:w-[min(640px,48vw)]"
+              item={openItem}
+              project={project ?? null}
+              agents={agents}
+              onClose={() => setOpenId(null)}
+              onHandoff={openTransfer}
+            />
+          )}
+        </div>
+      </div>
+      {plan && <PlanDialog request={plan} onClose={() => setPlan(null)} onApplied={reload} />}
+    </InfoContext.Provider>
+  );
+}

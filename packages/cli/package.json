@@ -7,7 +7,9 @@
   "bin": {
     "agent-mem": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -15,6 +17,7 @@
   "dependencies": {
     "@agent-mem/core": "workspace:*",
     "@agent-mem/server": "workspace:*",
-    "commander": "^14.0.0"
+    "commander": "^14.0.0",
+    "diff": "^8.0.4"
   }
 }

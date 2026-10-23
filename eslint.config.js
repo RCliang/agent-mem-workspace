@@ -15,6 +15,10 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/*/test/**/*.ts'],
+    rules: { '@typescript-eslint/no-explicit-any': 'off' },
+  },
+  {
     files: ['packages/web/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.browser } },
     plugins: { 'react-hooks': reactHooks },
