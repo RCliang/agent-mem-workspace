@@ -11,7 +11,7 @@ export * from './handoff.js';
 export * from './redact.js';
 export * from './convert.js';
 export { parseSessionFile, parseRecord } from './sessions.js';
-export { sha } from './fsutil.js';
+export { sha, readText } from './fsutil.js';
 export { claudeCodeAdapter, encodeClaudeProject } from './adapters/claude-code.js';
 export { codexAdapter } from './adapters/codex.js';
 export { piAdapter, encodePiProject } from './adapters/pi.js';
