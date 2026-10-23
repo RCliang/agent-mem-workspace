@@ -1,4 +1,4 @@
-import { History as HistoryIcon, LayoutGrid, RefreshCw, Table2 } from 'lucide-react';
+import { History as HistoryIcon, LayoutGrid, RefreshCw, Search, Table2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, subscribe, type AgentSummary, type BackupEntry, type Info, type MatrixRow, type MemoryItem, type ProjectInfo, type ShareStrategy } from './api';
 import { Board } from './components/Board';
@@ -46,7 +46,25 @@ export function App() {
   const [live, setLive] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hiddenAgents, setHiddenAgents] = useState<string[]>(() => readHiddenAgents());
+  const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? '');
+      if (e.key === '/' && !typing) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+      if (e.key === 'Escape' && document.activeElement === searchRef.current) {
+        setQuery('');
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const toggleAgent = useCallback((id: string) => {
     setHiddenAgents((prev) => {
@@ -60,9 +78,18 @@ export function App() {
     localStorage.setItem(HIDDEN_AGENTS_KEY, '[]');
   }, []);
   const visibleAgents = useMemo(() => agents.filter((a) => !hiddenAgents.includes(a.id)), [agents, hiddenAgents]);
+  const matchesQuery = useCallback(
+    (m: MemoryItem) => {
+      const q = query.trim().toLowerCase();
+      if (!q) return true;
+      return `${m.title} ${m.filePath} ${m.content}`.toLowerCase().includes(q);
+    },
+    [query],
+  );
+  const visibleMemories = useMemo(() => memories.filter(matchesQuery), [memories, matchesQuery]);
   const visibleRows = useMemo(
-    () => matrix.map((r) => ({ ...r, cells: r.cells.filter((c) => !hiddenAgents.includes(c.agent)) })),
-    [matrix, hiddenAgents],
+    () => matrix.filter((r) => matchesQuery(r.item)).map((r) => ({ ...r, cells: r.cells.filter((c) => !hiddenAgents.includes(c.agent)) })),
+    [matrix, matchesQuery, hiddenAgents],
   );
 
   useEffect(() => {
@@ -171,6 +198,35 @@ export function App() {
           <div className="hidden min-w-0 flex-1 lg:block">
             <p className="truncate text-[14px] font-medium">{project === null ? 'Global memory' : (current?.name ?? '')}</p>
           </div>
+          <div className="relative ml-auto hidden w-full max-w-xs md:block lg:ml-0">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-paper-mute" aria-hidden />
+            <input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search memories…"
+              aria-label="Search memories by title, path or content"
+              className="h-8 w-full rounded-md border border-ink-600 bg-ink-950 pr-14 pl-8 text-[13px] text-paper placeholder:text-paper-mute focus:border-signal focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-paper-mute hover:text-paper"
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : (
+              <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border border-ink-600 bg-ink-800 px-1 font-mono text-[11px] text-paper-mute">/</kbd>
+            )}
+          </div>
+          {query.trim() && (
+            <span className="shrink-0 text-[12px] text-paper-mute" title="Memories matching the search">
+              {visibleMemories.length}/{memories.length}
+            </span>
+          )}
           <nav className="flex items-center gap-1 rounded-lg bg-ink-950 p-1" aria-label="Views">
             {VIEWS.map((v) => (
               <button
@@ -214,7 +270,7 @@ export function App() {
           <main className="min-w-0 flex-1 overflow-hidden">
             {project === undefined && !loadError && <div className="m-5 h-40 animate-pulse rounded-xl bg-ink-800" />}
             {loadError && <p className="m-5 rounded-lg border border-danger/40 bg-danger/8 px-4 py-3 text-[13px] text-danger">Could not load data: {loadError}</p>}
-            {project !== undefined && view === 'board' && <Board agents={visibleAgents} memories={memories} project={project} onOpen={(m) => setOpenId(m.id)} onDrop={openTransfer} onCreate={createInstructions} />}
+            {project !== undefined && view === 'board' && <Board agents={visibleAgents} memories={visibleMemories} project={project} onOpen={(m) => setOpenId(m.id)} onDrop={openTransfer} onCreate={createInstructions} />}
             {project !== undefined && view === 'matrix' && (
               <Matrix
                 agents={visibleAgents}

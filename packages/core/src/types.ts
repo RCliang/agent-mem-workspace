@@ -47,6 +47,8 @@ export interface AgentAdapter {
   displayName: string;
   capabilities: AgentCapabilities;
   detect(): Promise<boolean>;
+  /** Directories whose changes can affect this agent's memories, for file watching. */
+  watchRoots?(): string[];
   listProjects(): Promise<ProjectInfo[]>;
   /** Pass `null` to read only global memories. */
   readMemories(projectPath: string | null): Promise<MemoryItem[]>;

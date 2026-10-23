@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { constants as fsConstants, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline/promises';
@@ -269,6 +269,41 @@ export function buildProgram(io: Io): Command {
     io.stdout(`Updated ${tildify(hub.ctx, res.filePath)} (backup ${res.backup.id})\n`);
   });
 
+  addLocate(
+    program
+      .command('search')
+      .description('Find memories whose title, path or content mentions a text')
+      .argument('<text>', 'text to look for (case-insensitive)')
+      .option('--json', 'print JSON'),
+  ).action(async (text: string, opts: LocateOpts & { json?: boolean }) => {
+    const hub = await openHub();
+    const project = await locate(hub, opts, 'cwd');
+    const q = text.toLowerCase();
+    const hits: { item: MemoryItem; lines: { no: number; text: string }[] }[] = [];
+    for (const m of await hub.memories(project)) {
+      const lines = m.content
+        .split('\n')
+        .map((l, i) => ({ no: i + 1, text: l.trim() }))
+        .filter((l) => l.text.toLowerCase().includes(q))
+        .slice(0, 5);
+      const meta = `${m.title} ${m.filePath}`.toLowerCase().includes(q);
+      if (lines.length || meta) hits.push({ item: m, lines });
+    }
+    if (opts.json) {
+      io.stdout(`${JSON.stringify(hits.map((h) => ({ id: h.item.id, agent: h.item.agent, title: h.item.title, filePath: h.item.filePath, lines: h.lines })), null, 2)}\n`);
+      return;
+    }
+    if (hits.length === 0) {
+      io.stdout(project ? `No memories in ${tildify(hub.ctx, project)} mention "${text}".\n` : `No global memories mention "${text}".\n`);
+      return;
+    }
+    io.stdout(`${hits.length} memor${hits.length === 1 ? 'y' : 'ies'} mention "${text}":\n`);
+    for (const h of hits) {
+      io.stdout(`\n${h.item.id}  ${h.item.agent}  ${h.item.title}\n  ${tildify(hub.ctx, h.item.filePath)}\n`);
+      for (const l of h.lines) io.stdout(`  L${l.no}: ${l.text.slice(0, 160)}\n`);
+    }
+  });
+
   program
     .command('agents')
     .description('List the coding agents agent-mem knows about and whether each is installed')
@@ -284,6 +319,55 @@ export function buildProgram(io: Io): Command {
         io.stdout(`${a.id.padEnd(14)} ${(a.detected ? 'installed' : 'missing').padEnd(10)} ${a.displayName.padEnd(14)} ${a.capabilities.imports ? '@imports' : 'inline'}\n`);
       }
       io.stdout('\nHide a column for an agent in the web UI, or add custom agents in ~/.agent-mem/config.json.\n');
+    });
+
+  program
+    .command('doctor')
+    .description('Check agent detection, the data directory and share consistency')
+    .option('--json', 'print JSON')
+    .action(async (opts: { json?: boolean }) => {
+      const hub = await openHub();
+      const agents = await hub.agents();
+      await fs.mkdir(hub.ctx.dataDir, { recursive: true }).catch(() => {});
+      const dataWritable = await fs.access(hub.ctx.dataDir, fsConstants.W_OK).then(
+        () => true,
+        () => false,
+      );
+      const shares = await listShares(hub.ctx);
+      const backups = await listBackups(hub.ctx);
+      const problems: string[] = [];
+      if (!dataWritable) problems.push(`data directory is not writable: ${hub.ctx.dataDir}`);
+      const shareIssues: string[] = [];
+      for (const s of shares) {
+        if ((await fs.stat(s.sourcePath).catch(() => null)) == null) shareIssues.push(`share ${s.id}: source missing ${tildify(hub.ctx, s.sourcePath)}`);
+        if ((await fs.stat(s.targetPath).catch(() => null)) == null) shareIssues.push(`share ${s.id}: target missing ${tildify(hub.ctx, s.targetPath)}`);
+      }
+      problems.push(...shareIssues);
+      const report = {
+        agents: agents.map((a) => ({ id: a.id, displayName: a.displayName, detected: a.detected, imports: a.capabilities.imports })),
+        dataDir: hub.ctx.dataDir,
+        dataWritable,
+        shares: shares.map((s) => ({ id: s.id, strategy: s.strategy, sourceAgent: s.sourceAgent, targetAgent: s.targetAgent })),
+        shareIssues,
+        backups: { total: backups.length, restored: backups.filter((b) => b.undone).length },
+        problems,
+      };
+      if (opts.json) {
+        io.stdout(`${JSON.stringify(report, null, 2)}\n`);
+      } else {
+        io.stdout('Agents\n');
+        for (const a of agents) io.stdout(`  ${a.detected ? 'ok  ' : '--  '}${a.id.padEnd(14)} ${a.displayName}${a.detected ? '' : '  (not installed)'}\n`);
+        io.stdout('\nData\n');
+        io.stdout(`  ${dataWritable ? 'ok  ' : '!!  '}data directory ${dataWritable ? 'writable' : 'NOT writable'}: ${tildify(hub.ctx, hub.ctx.dataDir)}\n`);
+        io.stdout(`  ok  ${backups.length} backup${backups.length === 1 ? '' : 's'} recorded, ${backups.filter((b) => b.undone).length} restored\n`);
+        io.stdout(`\nShares\n`);
+        if (shares.length === 0) io.stdout('  --  nothing shared yet\n');
+        for (const s of shares) io.stdout(`  ok  ${s.id}  ${s.strategy}  ${s.sourceAgent} -> ${s.targetAgent}\n`);
+        for (const issue of shareIssues) io.stdout(`  !!  ${issue}\n`);
+        io.stdout(`\n${problems.length === 0 ? 'No problems found.' : `${problems.length} problem${problems.length === 1 ? '' : 's'} found:`}\n`);
+        for (const p of problems) io.stdout(`  !!  ${p}\n`);
+      }
+      if (problems.length) throw new Exit(1);
     });
 
   program

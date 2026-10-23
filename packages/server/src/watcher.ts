@@ -7,12 +7,11 @@ const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', 
 
 /** Directories whose Markdown/JSONL files hold agent memories. */
 async function watchRoots(hub: Hub): Promise<string[]> {
-  const { home, env } = hub.ctx;
-  const roots = new Set<string>([
-    env.CLAUDE_CONFIG_DIR ?? path.join(home, '.claude'),
-    env.CODEX_HOME ?? path.join(home, '.codex'),
-    env.PI_CODING_AGENT_DIR ?? path.join(home, '.pi', 'agent'),
-  ]);
+  const roots = new Set<string>();
+  for (const a of hub.adapters) {
+    if (!(await a.detect())) continue;
+    for (const r of a.watchRoots?.() ?? []) roots.add(r);
+  }
   for (const p of await hub.projects()) roots.add(p.path);
   for (const s of await listShares(hub.ctx)) roots.add(path.dirname(s.sourcePath));
   return [...roots];

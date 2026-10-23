@@ -24,6 +24,8 @@ export function cursorAdapter(ctx: Context): AgentAdapter {
 
     detect: () => isDir(root),
 
+    watchRoots: () => [globalRules],
+
     listProjects: async () => [],
 
     async readMemories(projectPath) {

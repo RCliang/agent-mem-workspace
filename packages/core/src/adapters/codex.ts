@@ -31,6 +31,8 @@ export function codexAdapter(ctx: Context): AgentAdapter {
 
     detect: () => isDir(root),
 
+    watchRoots: () => [root],
+
     async listProjects() {
       const byCwd = new Map<string, ProjectInfo>();
       for (const h of await allHeads()) {

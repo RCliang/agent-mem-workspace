@@ -26,6 +26,7 @@ Overview: a local-first tool that shows the memory files of the coding agents in
 `agent-mem ui` 会在本地起一个网页。
 
 - **Board**：每个 agent 一列。点开卡片编辑 Markdown，保存前可以看 diff。把卡片拖到另一列会先弹出预览，确认后才写入。拖指令文件是一次性复制；拖会话会生成交接文档。
+- **搜索**：顶栏搜索框按标题、路径、内容过滤 Board 卡片和 matrix 行（按 `/` 聚焦，Esc 清空）。
 - **Share matrix**：一行一条记忆，一列一个 agent。点空格子即可授权。已经在读这个文件的 agent 显示为实心勾，点不了。
 - **History**：每次写入都会先备份，可以单条撤销。
 - **Agents 勾选**：侧边栏的 Agents 区块按 agent 勾选，取消勾选即隐藏 Board 列和 matrix 列（保存在浏览器本地，新装的 agent 默认显示）。
@@ -60,8 +61,10 @@ pnpm ui -- --demo --no-open
 
 ```bash
 agent-mem agents                   # 支持的 agent 及安装状态
+agent-mem doctor                   # 体检：agent 检测、数据目录、share 一致性
 agent-mem ls                       # 发现到的项目
 agent-mem ls -p ~/code/shop-api    # 这个项目下的全部记忆
+agent-mem search <text> -p .       # 按标题/路径/内容搜记忆（含行号，--json 可选）
 agent-mem link codex:AGENTS.md --to claude -p . --yes
 agent-mem link ~/.claude/CLAUDE.md --to codex,pi --global --strategy copy --yes
 agent-mem shares

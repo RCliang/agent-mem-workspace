@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { run, type Io } from '@agent-mem/cli';
-import { encodeClaudeProject } from '@agent-mem/core';
+import { encodeClaudeProject, writeState } from '@agent-mem/core';
 import { read, setup } from '../../core/test/helpers.js';
 
 function capture() {
@@ -120,6 +120,56 @@ describe('agent-mem cli', () => {
     const parsed = JSON.parse(json.text().out) as { id: string; detected: boolean }[];
     expect(parsed.map((a) => a.id)).toEqual(['claude-code', 'codex', 'pi', 'gemini', 'cursor', 'opencode']);
     expect(parsed.every((a) => a.detected)).toBe(true);
+  });
+
+  it('searches memories across agents with line numbers', async () => {
+    const { project } = await withHome();
+    const cap = capture();
+    expect(await run(['search', 'pnpm', '-p', project], cap.io)).toBe(0);
+    const out = cap.text().out;
+    expect(out).toMatch(/memories mention "pnpm"/);
+    expect(out).toContain('L3: - Prefer pnpm over npm.');
+    expect(out).toContain('claude-code');
+
+    const none = capture();
+    expect(await run(['search', 'there-is-no-such-text', '-p', project], none.io)).toBe(0);
+    expect(none.text().out).toMatch(/No memories/);
+
+    const json = capture();
+    expect(await run(['search', 'pnpm', '-p', project, '--json'], json.io)).toBe(0);
+    const parsed = JSON.parse(json.text().out) as { agent: string; lines: { no: number }[] }[];
+    expect(parsed.length).toBeGreaterThanOrEqual(4);
+    expect(parsed.every((h) => h.lines.length > 0)).toBe(true);
+    expect(new Set(parsed.map((h) => h.agent)).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('doctor reports a healthy setup and flags orphan shares', async () => {
+    const env = await withHome();
+    const ok = capture();
+    expect(await run(['doctor'], ok.io)).toBe(0);
+    expect(ok.text().out).toContain('gemini');
+    expect(ok.text().out).toContain('No problems found.');
+
+    await writeState(env.ctx, 'shares.json', [
+      {
+        id: 'orphan',
+        projectPath: env.project,
+        sourceAgent: 'codex',
+        sourcePath: path.join(env.project, 'gone.md'),
+        targetAgent: 'claude-code',
+        targetPath: path.join(env.project, 'CLAUDE.md'),
+        strategy: 'copy',
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    const bad = capture();
+    expect(await run(['doctor'], bad.io)).toBe(1);
+    expect(bad.text().out).toContain('source missing');
+
+    const json = capture();
+    expect(await run(['doctor', '--json'], json.io)).toBe(1);
+    const report = JSON.parse(json.text().out) as { problems: string[]; shareIssues: string[] };
+    expect(report.problems.length + report.shareIssues.length).toBeGreaterThan(0);
   });
 
   it('fails clearly for an unknown memory', async () => {

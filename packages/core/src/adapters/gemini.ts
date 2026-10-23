@@ -16,6 +16,8 @@ export function geminiAdapter(ctx: Context): AgentAdapter {
 
     detect: () => isDir(root),
 
+    watchRoots: () => [root],
+
     listProjects: async () => [],
 
     async readMemories(projectPath) {

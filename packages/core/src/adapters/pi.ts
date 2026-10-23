@@ -31,6 +31,8 @@ export function piAdapter(ctx: Context): AgentAdapter {
 
     detect: () => isDir(root),
 
+    watchRoots: () => [root],
+
     async listProjects() {
       const out: ProjectInfo[] = [];
       for (const name of await listDir(sessionsDir)) {

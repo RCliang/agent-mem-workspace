@@ -105,6 +105,19 @@ describe('HTTP API', () => {
 });
 
 describe('watcher', () => {
+  it('watches the extra agents\' memory directories too', async () => {
+    const { hub, bus, home } = await makeApp();
+    const watcher = await startWatcher(hub, bus, 50);
+    try {
+      const changed = new Promise<HubEvent>((resolve) => bus.on((e) => e.type === 'changed' && e.paths.some((p) => p.endsWith('GEMINI.md')) && resolve(e)));
+      fs.appendFileSync(path.join(home, '.gemini', 'GEMINI.md'), '- watched gemini change\n');
+      const e = await changed;
+      expect(e.paths.some((p) => p === path.join(home, '.gemini', 'GEMINI.md'))).toBe(true);
+    } finally {
+      await watcher.close();
+    }
+  }, 15000);
+
   it('re-syncs copy shares when the source changes and notifies listeners', async () => {
     const { call, project, hub, bus } = await makeApp();
     const q = `?project=${encodeURIComponent(project)}`;

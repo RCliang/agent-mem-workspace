@@ -30,6 +30,8 @@ export function declarativeAdapter(ctx: Context, spec: DeclarativeAgentSpec): Ag
     displayName: spec.displayName,
     capabilities: { imports: spec.imports ?? false },
     detect: () => isDir(home),
+
+    watchRoots: () => [home],
     listProjects: async () => [],
     async readMemories(projectPath) {
       const items: (MemoryItem | null)[] = [await fileItem(spec.id, globalFile, 'global', 'instructions', null, `Global (${path.basename(globalFile)})`)];

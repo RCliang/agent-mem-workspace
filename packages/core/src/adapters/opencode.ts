@@ -18,6 +18,8 @@ export function opencodeAdapter(ctx: Context): AgentAdapter {
 
     detect: () => isDir(configRoot),
 
+    watchRoots: () => [configRoot],
+
     listProjects: async () => [],
 
     async readMemories(projectPath) {
