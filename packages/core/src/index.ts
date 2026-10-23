@@ -15,4 +15,7 @@ export { sha, readText } from './fsutil.js';
 export { claudeCodeAdapter, encodeClaudeProject } from './adapters/claude-code.js';
 export { codexAdapter } from './adapters/codex.js';
 export { piAdapter, encodePiProject } from './adapters/pi.js';
+export { geminiAdapter } from './adapters/gemini.js';
+export { cursorAdapter } from './adapters/cursor.js';
+export { opencodeAdapter } from './adapters/opencode.js';
 export { declarativeAdapter, type DeclarativeAgentSpec } from './adapters/declarative.js';

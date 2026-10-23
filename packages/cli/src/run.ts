@@ -270,6 +270,23 @@ export function buildProgram(io: Io): Command {
   });
 
   program
+    .command('agents')
+    .description('List the coding agents agent-mem knows about and whether each is installed')
+    .option('--json', 'print JSON')
+    .action(async (opts: { json?: boolean }) => {
+      const hub = await openHub();
+      const agents = await hub.agents();
+      if (opts.json) {
+        io.stdout(`${JSON.stringify(agents, null, 2)}\n`);
+        return;
+      }
+      for (const a of agents) {
+        io.stdout(`${a.id.padEnd(14)} ${(a.detected ? 'installed' : 'missing').padEnd(10)} ${a.displayName.padEnd(14)} ${a.capabilities.imports ? '@imports' : 'inline'}\n`);
+      }
+      io.stdout('\nHide a column for an agent in the web UI, or add custom agents in ~/.agent-mem/config.json.\n');
+    });
+
+  program
     .command('shares')
     .description('List memories shared between agents')
     .option('--json', 'print JSON')

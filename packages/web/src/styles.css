@@ -30,6 +30,9 @@
   --color-agent-claude: #d97757;
   --color-agent-codex: #3fb68b;
   --color-agent-pi: #9d8cf2;
+  --color-agent-gemini: #4f8ff7;
+  --color-agent-cursor: #e0e0e0;
+  --color-agent-opencode: #f5f060;
   --color-agent-other: #6aa9e8;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);

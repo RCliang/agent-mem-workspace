@@ -319,6 +319,11 @@ export function Board({
   return (
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragged(null)}>
       <div className="flex h-full gap-4 overflow-x-auto p-5">
+        {agents.length === 0 && (
+          <p className="m-auto rounded-xl border border-dashed border-ink-600 px-6 py-8 text-center text-[13px] text-paper-mute">
+            Every agent column is hidden. Tick at least one agent in the sidebar to see its memories.
+          </p>
+        )}
         {agents.map((a) => (
           <Column
             key={a.id}

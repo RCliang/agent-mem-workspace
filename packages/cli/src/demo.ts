@@ -56,5 +56,11 @@ export function createDemoContext(): { ctx: Context; root: string } {
     ].join('\n') + '\n',
   );
 
+  write(path.join(home, '.gemini', 'GEMINI.md'), '# Gemini global context\n\n- Explain retries before using them.\n');
+  write(path.join(project, 'GEMINI.md'), '# shop-api Gemini context\n\n- Follow the TypeScript strictness config.\n');
+  write(path.join(home, '.cursor', 'rules', 'core.mdc'), '---\ndescription: Core conventions\n---\n\n- Use pnpm scripts only.\n');
+  write(path.join(project, '.cursor', 'rules', 'backend.mdc'), '---\ndescription: Backend rules\n---\n\n- Validate inputs at the router layer.\n');
+  write(path.join(home, '.config', 'opencode', 'AGENTS.md'), '# opencode global instructions\n\n- Prefer small, focused modules.\n');
+
   return { ctx: createContext({ home, dataDir: path.join(home, '.agent-mem'), env: {} }), root };
 }

@@ -43,5 +43,13 @@ export function createSandbox(root) {
   write(path.join(home, '.pi', 'agent', 'AGENTS.md'), '# Pi global context\n\n- Use conventional commits.\n');
   write(path.join(home, '.pi', 'agent', 'sessions', piEnc(project), '2026-10-22T08-00-00_pi-5e8a91.jsonl'), session('pi', project));
 
+  write(path.join(home, '.gemini', 'GEMINI.md'), '# Gemini global context\n\n- Explain retries before using them.\n');
+  write(path.join(project, 'GEMINI.md'), '# shop-api Gemini context\n\n- Follow the TypeScript strictness config.\n');
+
+  write(path.join(home, '.cursor', 'rules', 'core.mdc'), '---\ndescription: Core conventions\n---\n\n- Use pnpm scripts only.\n');
+  write(path.join(project, '.cursor', 'rules', 'backend.mdc'), '---\ndescription: Backend rules\n---\n\n- Validate inputs at the router layer.\n');
+
+  write(path.join(home, '.config', 'opencode', 'AGENTS.md'), '# opencode global instructions\n\n- Prefer small, focused modules.\n');
+
   return { home, dataDir, project, otherProject };
 }

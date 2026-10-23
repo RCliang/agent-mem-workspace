@@ -20,6 +20,17 @@ const VIEWS: { id: View; label: string; icon: typeof LayoutGrid }[] = [
 ];
 
 const STORAGE_KEY = 'agent-mem:project';
+const HIDDEN_AGENTS_KEY = 'agent-mem:hidden-agents';
+
+function readHiddenAgents(): string[] {
+  try {
+    const raw = localStorage.getItem(HIDDEN_AGENTS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 export function App() {
   const [info, setInfo] = useState<Info>({ home: '', dataDir: '', llm: false });
@@ -34,7 +45,25 @@ export function App() {
   const [plan, setPlan] = useState<PlanRequest | null>(null);
   const [live, setLive] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hiddenAgents, setHiddenAgents] = useState<string[]>(() => readHiddenAgents());
   const toast = useToast();
+
+  const toggleAgent = useCallback((id: string) => {
+    setHiddenAgents((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      localStorage.setItem(HIDDEN_AGENTS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+  const showAllAgents = useCallback(() => {
+    setHiddenAgents([]);
+    localStorage.setItem(HIDDEN_AGENTS_KEY, '[]');
+  }, []);
+  const visibleAgents = useMemo(() => agents.filter((a) => !hiddenAgents.includes(a.id)), [agents, hiddenAgents]);
+  const visibleRows = useMemo(
+    () => matrix.map((r) => ({ ...r, cells: r.cells.filter((c) => !hiddenAgents.includes(c.agent)) })),
+    [matrix, hiddenAgents],
+  );
 
   useEffect(() => {
     Promise.all([api.info(), api.agents(), api.projects()])
@@ -177,15 +206,19 @@ export function App() {
               setOpenId(null);
             }}
             onProjectsChange={setProjects}
+            agents={agents}
+            hiddenAgents={hiddenAgents}
+            onToggleAgent={toggleAgent}
+            onShowAllAgents={showAllAgents}
           />
           <main className="min-w-0 flex-1 overflow-hidden">
             {project === undefined && !loadError && <div className="m-5 h-40 animate-pulse rounded-xl bg-ink-800" />}
             {loadError && <p className="m-5 rounded-lg border border-danger/40 bg-danger/8 px-4 py-3 text-[13px] text-danger">Could not load data: {loadError}</p>}
-            {project !== undefined && view === 'board' && <Board agents={agents} memories={memories} project={project} onOpen={(m) => setOpenId(m.id)} onDrop={openTransfer} onCreate={createInstructions} />}
+            {project !== undefined && view === 'board' && <Board agents={visibleAgents} memories={memories} project={project} onOpen={(m) => setOpenId(m.id)} onDrop={openTransfer} onCreate={createInstructions} />}
             {project !== undefined && view === 'matrix' && (
               <Matrix
-                agents={agents}
-                rows={matrix}
+                agents={visibleAgents}
+                rows={visibleRows}
                 onShare={openShare}
                 onUnshare={(id) => setPlan({ load: () => api.previewUnshare(id) })}
                 onOpen={(m) => {
@@ -212,7 +245,7 @@ export function App() {
               className="absolute inset-0 z-20 w-full lg:static lg:z-auto lg:w-[min(720px,52vw)]"
               item={openItem}
               project={project ?? null}
-              agents={agents}
+              agents={visibleAgents}
               onClose={() => setOpenId(null)}
               onSaved={reload}
               onShare={(item, agent) => openShare(item, agent)}
@@ -224,7 +257,7 @@ export function App() {
               className="absolute inset-0 z-20 w-full lg:static lg:z-auto lg:w-[min(640px,48vw)]"
               item={openItem}
               project={project ?? null}
-              agents={agents}
+              agents={visibleAgents}
               onClose={() => setOpenId(null)}
               onHandoff={openTransfer}
             />

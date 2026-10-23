@@ -1,6 +1,6 @@
-import { FolderGit2, FolderPlus, Globe2 } from 'lucide-react';
+import { Bot, FolderGit2, FolderPlus, Globe2 } from 'lucide-react';
 import { useState } from 'react';
-import { api, type ProjectInfo } from '../api';
+import { api, type AgentSummary, type ProjectInfo } from '../api';
 import { AgentDot, cx, relativeTime, useTildify } from '../ui';
 import { useToast } from './Toasts';
 
@@ -9,12 +9,20 @@ export function Sidebar({
   selected,
   onSelect,
   onProjectsChange,
+  agents,
+  hiddenAgents,
+  onToggleAgent,
+  onShowAllAgents,
   className,
 }: {
   projects: ProjectInfo[];
   selected: string | null;
   onSelect: (p: string | null) => void;
   onProjectsChange: (ps: ProjectInfo[]) => void;
+  agents: AgentSummary[];
+  hiddenAgents: string[];
+  onToggleAgent: (id: string) => void;
+  onShowAllAgents: () => void;
   className?: string;
 }) {
   const [adding, setAdding] = useState(false);
@@ -49,6 +57,39 @@ export function Sidebar({
           <Globe2 className="size-4 shrink-0" />
           <span className="font-medium">Global memory</span>
         </button>
+      </div>
+
+      <h2 className="px-5 pt-5 pb-1.5 text-[12px] font-medium text-paper-mute">Agents</h2>
+      <div className="px-3" role="group" aria-label="Show or hide agents">
+        {agents.map((a) => {
+          const checked = !hiddenAgents.includes(a.id);
+          return (
+            <label
+              key={a.id}
+              className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors hover:bg-ink-800"
+              title={checked ? `Hide ${a.displayName} columns` : `Show ${a.displayName} columns`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => onToggleAgent(a.id)}
+                className="size-3.5 shrink-0 accent-[var(--color-signal)]"
+              />
+              <AgentDot agent={a.id} size={8} />
+              <span className={cx('min-w-0 flex-1 truncate', checked ? 'text-paper-dim' : 'text-paper-mute line-through decoration-ink-500')}>{a.displayName}</span>
+              {!a.detected && (
+                <span className="shrink-0 rounded bg-warn/15 px-1.5 py-px text-[11px] font-medium leading-4 text-warn" title="Not detected on this machine">
+                  n/a
+                </span>
+              )}
+            </label>
+          );
+        })}
+        {hiddenAgents.length > 0 && (
+          <button type="button" onClick={onShowAllAgents} className="mt-0.5 flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] text-paper-mute hover:bg-ink-800 hover:text-paper">
+            <Bot className="size-3.5" /> Show all {agents.length - hiddenAgents.length}/{agents.length} shown
+          </button>
+        )}
       </div>
 
       <h2 className="px-5 pt-5 pb-1.5 text-[12px] font-medium text-paper-mute">Projects</h2>

@@ -3,7 +3,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { claudeCodeAdapter } from './adapters/claude-code.js';
 import { codexAdapter } from './adapters/codex.js';
+import { cursorAdapter } from './adapters/cursor.js';
 import { declarativeAdapter, type DeclarativeAgentSpec } from './adapters/declarative.js';
+import { geminiAdapter } from './adapters/gemini.js';
+import { opencodeAdapter } from './adapters/opencode.js';
 import { piAdapter } from './adapters/pi.js';
 import { expandHome, type Context } from './context.js';
 import { readState, writeState } from './store.js';
@@ -24,7 +27,13 @@ export interface AgentSummary {
   capabilities: AgentAdapter['capabilities'];
 }
 
-const AGENT_ALIASES: Record<string, AgentId> = { claude: 'claude-code', cc: 'claude-code', 'pi-agent': 'pi' };
+const AGENT_ALIASES: Record<string, AgentId> = {
+  claude: 'claude-code',
+  cc: 'claude-code',
+  'pi-agent': 'pi',
+  'gemini-cli': 'gemini',
+  oc: 'opencode',
+};
 
 export class Hub {
   private constructor(
@@ -34,7 +43,7 @@ export class Hub {
 
   static async create(ctx: Context, extra: AgentAdapter[] = []): Promise<Hub> {
     const config = await readConfig(ctx);
-    const adapters: AgentAdapter[] = [claudeCodeAdapter(ctx), codexAdapter(ctx), piAdapter(ctx)];
+    const adapters: AgentAdapter[] = [claudeCodeAdapter(ctx), codexAdapter(ctx), piAdapter(ctx), geminiAdapter(ctx), cursorAdapter(ctx), opencodeAdapter(ctx)];
     for (const spec of config.agents ?? []) adapters.push(declarativeAdapter(ctx, spec));
     for (const p of config.plugins ?? []) {
       const mod = (await import(pathToFileURL(expandHome(ctx, p)).href)) as { default: (c: Context) => AgentAdapter };

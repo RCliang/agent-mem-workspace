@@ -13,6 +13,9 @@ Overview: a local-first tool that shows the memory files of the coding agents in
 | Claude Code | `~/.claude/CLAUDE.md` | `CLAUDE.md`、`.claude/CLAUDE.md`、`CLAUDE.local.md`，以及 `~/.claude/projects/<项目>/memory/*.md` | `~/.claude/projects/<项目>/*.jsonl` |
 | Codex | `~/.codex/AGENTS.md` | `AGENTS.md`（`AGENTS.override.md` 优先） | `~/.codex/sessions/**/*.jsonl` |
 | Pi | `~/.pi/agent/AGENTS.md` | `AGENTS.md`、`CLAUDE.md` | `~/.pi/agent/sessions/--<项目>--/*.jsonl` |
+| Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`、`.gemini/GEMINI.md` | 不解析 |
+| Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | 不解析 |
+| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | 不解析 |
 
 同一个文件被多个 agent 读取时（项目里的 `AGENTS.md` 同时属于 Codex 和 Pi），界面只把它算作一份，并标出「also read by」。
 
@@ -25,6 +28,7 @@ Overview: a local-first tool that shows the memory files of the coding agents in
 - **Board**：每个 agent 一列。点开卡片编辑 Markdown，保存前可以看 diff。把卡片拖到另一列会先弹出预览，确认后才写入。拖指令文件是一次性复制；拖会话会生成交接文档。
 - **Share matrix**：一行一条记忆，一列一个 agent。点空格子即可授权。已经在读这个文件的 agent 显示为实心勾，点不了。
 - **History**：每次写入都会先备份，可以单条撤销。
+- **Agents 勾选**：侧边栏的 Agents 区块按 agent 勾选，取消勾选即隐藏 Board 列和 matrix 列（保存在浏览器本地，新装的 agent 默认显示）。
 
 授权有三种写法，矩阵里可以指定，不指定就按顺序自动选：
 
@@ -55,6 +59,7 @@ pnpm ui -- --demo --no-open
 界面上的操作都有对应命令。默认只打印将要写入的内容和 diff，加上 `--yes` 才会写盘。在终端里不加 `--yes` 时会再问一次。
 
 ```bash
+agent-mem agents                   # 支持的 agent 及安装状态
 agent-mem ls                       # 发现到的项目
 agent-mem ls -p ~/code/shop-api    # 这个项目下的全部记忆
 agent-mem link codex:AGENTS.md --to claude -p . --yes
@@ -69,7 +74,7 @@ agent-mem undo                     # 撤销最近一次写入
 agent-mem projects add ~/code/app
 ```
 
-`claude` 是 `claude-code` 的别名。记忆可以用 `ls` 输出的 id、文件路径，或者 `agent:相对路径`。
+`claude` 是 `claude-code` 的别名，`gemini-cli` 是 `gemini` 的别名，`oc` 是 `opencode` 的别名。记忆可以用 `ls` 输出的 id、文件路径，或者 `agent:相对路径`。
 
 ## 接入别的 agent
 

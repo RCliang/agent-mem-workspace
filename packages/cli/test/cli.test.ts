@@ -105,6 +105,23 @@ describe('agent-mem cli', () => {
     expect(JSON.parse(cap.text().out).projects.some((p: { path: string }) => p.path === extra)).toBe(true);
   });
 
+  it('lists agents with detection status', async () => {
+    await withHome();
+    const cap = capture();
+    expect(await run(['agents'], cap.io)).toBe(0);
+    const out = cap.text().out;
+    expect(out).toContain('claude-code');
+    expect(out).toContain('gemini');
+    expect(out).toMatch(/cursor\s+installed/);
+    expect(out).toContain('@imports');
+
+    const json = capture();
+    expect(await run(['agents', '--json'], json.io)).toBe(0);
+    const parsed = JSON.parse(json.text().out) as { id: string; detected: boolean }[];
+    expect(parsed.map((a) => a.id)).toEqual(['claude-code', 'codex', 'pi', 'gemini', 'cursor', 'opencode']);
+    expect(parsed.every((a) => a.detected)).toBe(true);
+  });
+
   it('fails clearly for an unknown memory', async () => {
     const { project } = await withHome();
     const cap = capture();

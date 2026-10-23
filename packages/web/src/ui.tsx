@@ -6,6 +6,9 @@ export const AGENT_COLORS: Record<string, string> = {
   'claude-code': 'var(--color-agent-claude)',
   codex: 'var(--color-agent-codex)',
   pi: 'var(--color-agent-pi)',
+  gemini: 'var(--color-agent-gemini)',
+  cursor: 'var(--color-agent-cursor)',
+  opencode: 'var(--color-agent-opencode)',
 };
 
 export const agentColor = (id: string) => AGENT_COLORS[id] ?? 'var(--color-agent-other)';

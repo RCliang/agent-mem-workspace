@@ -71,7 +71,14 @@ describe('sharing', () => {
     await applyPlan(hub.ctx, await planShare(hub, agentsMd, 'claude-code'));
     const rows = await shareMatrix(hub, project);
     const row = rows.find((r) => r.item.filePath === path.join(project, 'AGENTS.md'))!;
-    expect(row.cells.map((c) => `${c.agent}:${c.state}`)).toEqual(['claude-code:shared', 'codex:native', 'pi:native']);
+    expect(row.cells.map((c) => `${c.agent}:${c.state}`)).toEqual([
+      'claude-code:shared',
+      'codex:native',
+      'pi:native',
+      'gemini:available',
+      'cursor:available',
+      'opencode:native',
+    ]);
     // AGENTS.md is read by both Codex and Pi but listed once.
     expect(rows.filter((r) => r.item.filePath === path.join(project, 'AGENTS.md'))).toHaveLength(1);
   });

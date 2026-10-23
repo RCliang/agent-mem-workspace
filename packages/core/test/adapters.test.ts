@@ -12,6 +12,9 @@ describe('adapters', () => {
       ['claude-code', true],
       ['codex', true],
       ['pi', true],
+      ['gemini', true],
+      ['cursor', true],
+      ['opencode', true],
     ]);
   });
 
@@ -43,6 +46,12 @@ describe('adapters', () => {
       'codex|global|instructions|AGENTS.md',
       'codex|local|session|rollout-2026-10-22T02-10-00-0199c1d2.jsonl',
       'codex|project|instructions|AGENTS.md',
+      'cursor|global|instructions|core.mdc',
+      'cursor|project|instructions|backend.mdc',
+      'gemini|global|instructions|GEMINI.md',
+      'gemini|project|instructions|GEMINI.md',
+      'opencode|global|instructions|AGENTS.md',
+      'opencode|project|instructions|AGENTS.md',
       'pi|global|instructions|AGENTS.md',
       'pi|local|session|2026-10-22T08-00-00_pi-5e8a91.jsonl',
       'pi|project|instructions|AGENTS.md',
@@ -54,9 +63,34 @@ describe('adapters', () => {
     const { hub, project } = await setup();
     const items = await hub.memories(project);
     const codexAgents = items.find((i) => i.agent === 'codex' && i.filePath === path.join(project, 'AGENTS.md'));
-    expect(codexAgents?.alsoReadBy).toEqual(['pi']);
+    expect(codexAgents?.alsoReadBy).toEqual(['pi', 'opencode']);
     const claudeMd = items.find((i) => i.agent === 'claude-code' && i.filePath === path.join(project, 'CLAUDE.md'));
     expect(claudeMd?.alsoReadBy).toEqual(['pi']);
+  });
+
+  it('reads the extra built-in agents (Gemini CLI, Cursor, opencode)', async () => {
+    const { hub, home, project } = await setup();
+    const items = await hub.memories(project);
+
+    const geminiGlobal = items.find((i) => i.agent === 'gemini' && i.scope === 'global');
+    expect(geminiGlobal?.filePath).toBe(path.join(home, '.gemini', 'GEMINI.md'));
+    expect(hub.adapter('gemini').capabilities.imports).toBe(true);
+    expect(hub.adapter('gemini').instructionFile(project).filePath).toBe(path.join(project, 'GEMINI.md'));
+
+    const rules = items.filter((i) => i.agent === 'cursor').map((i) => path.basename(i.filePath)).sort();
+    expect(rules).toEqual(['backend.mdc', 'core.mdc']);
+    expect(hub.adapter('cursor').instructionFile(project).filePath).toBe(path.join(project, '.cursor', 'rules', 'agent-mem.mdc'));
+    expect(hub.adapter('cursor').instructionFile(null).filePath).toBe(path.join(home, '.cursor', 'rules', 'agent-mem.mdc'));
+
+    const openGlobal = items.find((i) => i.agent === 'opencode' && i.scope === 'global');
+    expect(openGlobal?.filePath).toBe(path.join(home, '.config', 'opencode', 'AGENTS.md'));
+    expect(hub.adapter('opencode').instructionFile(null).filePath).toBe(path.join(home, '.config', 'opencode', 'AGENTS.md'));
+  });
+
+  it('resolves agent aliases for the extra agents', async () => {
+    const { hub } = await setup();
+    expect(hub.adapter('gemini-cli').id).toBe('gemini');
+    expect(hub.adapter('oc').id).toBe('opencode');
   });
 
   it('titles sessions with the first real user prompt', async () => {
