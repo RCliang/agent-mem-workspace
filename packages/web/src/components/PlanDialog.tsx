@@ -15,6 +15,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
   const tildify = useTildify();
   const toast = useToast();
@@ -29,7 +30,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
   const run = useCallback(
     async (render?: TransferRender) => {
       const mine = ++ticket.current;
-      setPlan(null);
+      setLoading(true);
       setError(null);
       try {
         const next = request.kind === 'transfer' ? await request.load(render ?? 'verbatim') : await request.load();
@@ -38,6 +39,8 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
         setActive(0);
       } catch (e) {
         if (ticket.current === mine) setError((e as Error).message);
+      } finally {
+        if (ticket.current === mine) setLoading(false);
       }
     },
     [request],
@@ -155,7 +158,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
 
       <footer className="flex items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
         {request.kind === 'transfer' && (
-          <Button variant="quiet" onClick={() => void run('summary')}>
+          <Button variant="quiet" disabled={loading} onClick={() => void run('summary')}>
             <Sparkles className="size-3.5 text-signal" /> Summarize
           </Button>
         )}
@@ -163,7 +166,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
         <Button variant="quiet" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" disabled={!plan || busy || plan.writes.length === 0} onClick={apply}>
+        <Button variant="primary" disabled={!plan || busy || loading || plan.writes.length === 0} onClick={apply}>
           {busy ? 'Applying...' : 'Apply'}
         </Button>
       </footer>
