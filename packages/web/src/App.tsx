@@ -1,4 +1,4 @@
-import { History as HistoryIcon, LayoutGrid, Puzzle, RefreshCw, Search, Table2, X } from 'lucide-react';
+import { History as HistoryIcon, LayoutGrid, Menu, Puzzle, RefreshCw, Search, Table2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, subscribe, type AgentSummary, type BackupEntry, type Info, type MatrixRow, type MemoryItem, type ProjectInfo, type ShareStrategy, type SkillItem, type SkillLibrary } from './api';
 import { Board } from './components/Board';
@@ -15,11 +15,11 @@ import { Button, cx, InfoContext } from './ui';
 
 type View = 'board' | 'skills' | 'matrix' | 'history';
 
-const VIEWS: { id: View; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'board', label: 'Board', icon: LayoutGrid },
-  { id: 'skills', label: 'Skills', icon: Puzzle },
-  { id: 'matrix', label: 'Share matrix', icon: Table2 },
-  { id: 'history', label: 'History', icon: HistoryIcon },
+const VIEWS: { id: View; label: string; short: string; icon: typeof LayoutGrid }[] = [
+  { id: 'board', label: 'Board', short: 'Board', icon: LayoutGrid },
+  { id: 'skills', label: 'Skills', short: 'Skills', icon: Puzzle },
+  { id: 'matrix', label: 'Share matrix', short: 'Matrix', icon: Table2 },
+  { id: 'history', label: 'History', short: 'History', icon: HistoryIcon },
 ];
 
 const STORAGE_KEY = 'agent-mem:project';
@@ -52,24 +52,42 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hiddenAgents, setHiddenAgents] = useState<string[]>(() => readHiddenAgents());
   const [query, setQuery] = useState('');
+  const [mobileSearch, setMobileSearch] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const overlaySearchRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+
+  const clearSearch = useCallback(() => setQuery(''), []);
+
+  useEffect(() => {
+    setMobileSearch(false);
+  }, [view]);
+
+  useEffect(() => {
+    if (mobileSearch) overlaySearchRef.current?.focus();
+  }, [mobileSearch]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? '');
       if (e.key === '/' && !typing) {
         e.preventDefault();
-        searchRef.current?.focus();
+        // Below md the header search is hidden; open the overlay input instead.
+        if (window.matchMedia('(min-width: 768px)').matches) searchRef.current?.focus();
+        else setMobileSearch(true);
       }
-      if (e.key === 'Escape' && document.activeElement === searchRef.current) {
-        setQuery('');
-        searchRef.current?.blur();
+      if (e.key === 'Escape') {
+        if (document.activeElement === searchRef.current) {
+          setQuery('');
+          searchRef.current?.blur();
+        }
+        if (sidebarOpen) setSidebarOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [sidebarOpen]);
 
   const persistHidden = useCallback((next: string[]) => {
     localStorage.setItem(HIDDEN_AGENTS_KEY, JSON.stringify(next));
@@ -216,8 +234,16 @@ export function App() {
   return (
     <InfoContext.Provider value={info}>
       <div className="flex h-full flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-900 px-4">
-          <div className="flex w-[232px] items-center gap-2">
+        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-ink-700 bg-ink-900 px-4">
+          <button
+            type="button"
+            aria-label="Open sidebar"
+            onClick={() => setSidebarOpen(true)}
+            className="rounded-md p-1.5 text-paper-dim hover:bg-ink-800 hover:text-paper lg:hidden"
+          >
+            <Menu className="size-4" />
+          </button>
+          <div className="flex w-[196px] items-center gap-2 lg:w-[232px]">
             <img src="/favicon.svg" alt="" className="size-6" />
             <span className="text-[15px] font-semibold tracking-tight">agent-mem</span>
           </div>
@@ -229,6 +255,7 @@ export function App() {
               onChange={(e) => {
                 setProject(e.target.value || null);
                 setOpenId(null);
+                setOpenSkillId(null);
               }}
             >
               <option value="">Global memory</option>
@@ -278,15 +305,27 @@ export function App() {
                 type="button"
                 aria-current={view === v.id ? 'page' : undefined}
                 onClick={() => setView(v.id)}
+                title={v.label}
                 className={cx(
-                  'inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors',
+                  'inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[13px] font-medium transition-colors',
                   view === v.id ? 'bg-ink-700 text-paper' : 'text-paper-dim hover:text-paper',
                 )}
               >
-                <v.icon className="size-3.5" /> <span className="hidden sm:inline">{v.label}</span>
+                <v.icon className="size-3.5" />
+                <span className="hidden sm:inline xl:hidden">{v.short}</span>
+                <span className="hidden xl:inline">{v.label}</span>
               </button>
             ))}
           </nav>
+          <button
+            type="button"
+            aria-label="Search"
+            aria-expanded={mobileSearch}
+            onClick={() => setMobileSearch((v) => !v)}
+            className="rounded-md p-1.5 text-paper-dim hover:bg-ink-800 hover:text-paper md:hidden"
+          >
+            <Search className="size-4" />
+          </button>
           <Button variant="quiet" onClick={syncNow} title="Re-copy shared memories whose source changed">
             <RefreshCw className="size-3.5" /> Sync
           </Button>
@@ -296,6 +335,56 @@ export function App() {
           </span>
         </header>
 
+        {mobileSearch && (
+          <div className="flex items-center gap-2 border-b border-ink-700 bg-ink-900 px-4 py-2 md:hidden">
+            <Search className="size-3.5 shrink-0 text-paper-mute" aria-hidden />
+            <input
+              ref={overlaySearchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search memories and skills…"
+              aria-label="Search memories and skills"
+              className="h-8 w-full rounded-md border border-ink-600 bg-ink-950 px-2.5 text-[13px] text-paper placeholder:text-paper-mute focus:border-signal focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setMobileSearch(false);
+              }}
+              aria-label="Close search"
+              className="rounded p-1 text-paper-mute hover:text-paper"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-30 lg:hidden">
+            <div className="absolute inset-0 bg-black/55" onClick={() => setSidebarOpen(false)} aria-hidden />
+            <aside className="absolute inset-y-0 left-0 flex w-[280px] shadow-2xl">
+              <Sidebar
+                className="flex w-full"
+                projects={projects}
+                selected={project ?? null}
+                onSelect={(p) => {
+                  setProject(p);
+                  setOpenId(null);
+                  setOpenSkillId(null);
+                  setSidebarOpen(false);
+                }}
+                onProjectsChange={setProjects}
+                agents={agents}
+                hiddenAgents={hiddenAgents}
+                onToggleAgent={toggleAgent}
+                onShowAllAgents={showAllAgents}
+              />
+            </aside>
+          </div>
+        )}
+
         <div className="relative flex min-h-0 flex-1">
           <Sidebar
             className="hidden lg:flex"
@@ -304,6 +393,7 @@ export function App() {
             onSelect={(p) => {
               setProject(p);
               setOpenId(null);
+              setOpenSkillId(null);
             }}
             onProjectsChange={setProjects}
             agents={agents}
@@ -319,6 +409,8 @@ export function App() {
                 agents={visibleAgents}
                 memories={visibleMemories}
                 project={project}
+                query={query}
+                onClearSearch={clearSearch}
                 onOpen={(m) => setOpenId(m.id)}
                 onDrop={openTransfer}
                 onCreate={createInstructions}
@@ -327,12 +419,14 @@ export function App() {
               />
             )}
             {project !== undefined && view === 'skills' && (
-              <SkillsBoard libraries={visibleSkillLibraries} skills={visibleSkills} onOpen={(s) => setOpenSkillId(s.id)} onTransfer={openSkillTransfer} onDelete={openSkillDelete} />
+              <SkillsBoard libraries={visibleSkillLibraries} skills={visibleSkills} query={query} onClearSearch={clearSearch} onOpen={(s) => setOpenSkillId(s.id)} onTransfer={openSkillTransfer} onDelete={openSkillDelete} />
             )}
             {project !== undefined && view === 'matrix' && (
               <Matrix
                 agents={visibleAgents}
                 rows={visibleRows}
+                query={query}
+                onClearSearch={clearSearch}
                 onShare={openShare}
                 onUnshare={(id) => setPlan({ kind: 'unshare', load: () => api.previewUnshare(id) })}
                 onOpen={(m) => {

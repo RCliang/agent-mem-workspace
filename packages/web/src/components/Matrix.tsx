@@ -1,7 +1,7 @@
-import { Check, ChevronDown, Link2, Plus } from 'lucide-react';
+import { Check, ChevronDown, Link2, Plus, Table2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { AgentSummary, MatrixRow, MemoryItem, ShareStrategy } from '../api';
-import { AgentDot, agentColor, cx, useTildify } from '../ui';
+import { AgentDot, agentColor, Button, cx, EmptyState, useTildify } from '../ui';
 
 const STRATEGY_HELP: Record<ShareStrategy, string> = {
   import: 'Add an @import line. Stays in sync, Claude Code only.',
@@ -44,12 +44,17 @@ function StrategyMenu({ agent, onPick, onClose }: { agent: AgentSummary; onPick:
 export function Matrix({
   agents,
   rows,
+  query,
+  onClearSearch,
   onShare,
   onUnshare,
   onOpen,
 }: {
   agents: AgentSummary[];
   rows: MatrixRow[];
+  /** Active search query, so the empty state can say why nothing matches. */
+  query?: string;
+  onClearSearch?: () => void;
   onShare: (item: MemoryItem, agent: string, strategy?: ShareStrategy) => void;
   onUnshare: (shareId: string) => void;
   onOpen: (item: MemoryItem) => void;
@@ -57,7 +62,17 @@ export function Matrix({
   const [menu, setMenu] = useState<string | null>(null);
   const tildify = useTildify();
 
-  if (rows.length === 0) return <p className="p-8 text-[13px] text-paper-mute">No memory files here yet. Create one from the board first.</p>;
+  if (rows.length === 0) {
+    const searching = !!query?.trim();
+    return (
+      <EmptyState
+        icon={Table2}
+        title={searching ? `No memories match “${query!.trim()}”` : 'No memory files here yet'}
+        hint={searching ? 'The search filters this table by title, path and content.' : 'Create an instruction file from the board, then share it from here.'}
+        action={searching && onClearSearch ? <Button variant="ghost" onClick={onClearSearch}>Clear search</Button> : undefined}
+      />
+    );
+  }
 
   return (
     <div className="h-full overflow-auto p-5">
@@ -67,7 +82,7 @@ export function Matrix({
       <table className="w-full min-w-[720px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-ink-700 text-[13px]">
         <thead>
           <tr className="bg-ink-900">
-            <th scope="col" className="border-b border-ink-700 px-4 py-2.5 text-left text-[12px] font-medium text-paper-mute">
+            <th scope="col" className="sticky left-0 z-10 border-b border-ink-700 bg-ink-900 px-4 py-2.5 text-left text-[12px] font-medium text-paper-mute">
               Memory
             </th>
             {agents.map((a) => (
@@ -82,11 +97,13 @@ export function Matrix({
         <tbody>
           {rows.map((r) => (
             <tr key={r.item.id} className="bg-ink-950 hover:bg-ink-900/70">
-              <th scope="row" className="border-b border-ink-700/70 px-4 py-2.5 text-left font-normal">
+              <th scope="row" className="sticky left-0 z-10 border-b border-ink-700/70 bg-ink-950 px-4 py-2.5 text-left font-normal shadow-[inset_-1px_0_0_0_var(--color-ink-700)]">
                 <button type="button" onClick={() => onOpen(r.item)} className="block max-w-full text-left hover:underline">
                   <span className="block truncate font-medium">{r.item.title}</span>
                 </button>
-                <span className="block truncate font-mono text-[11px] text-paper-mute">{tildify(r.item.filePath)}</span>
+                <span className="block truncate font-mono text-[11px] text-paper-mute" title={r.item.filePath}>
+                  {tildify(r.item.filePath)}
+                </span>
               </th>
               {r.cells.map((c) => {
                 const agent = agents.find((a) => a.id === c.agent)!;

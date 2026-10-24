@@ -59,7 +59,7 @@ export async function applyPlan(ctx: Context, plan: Plan): Promise<ApplyResult> 
     if (actual !== w.beforeHash) throw new ConflictError(w.filePath, w.beforeHash, actual);
   }
   for (const op of plan.dirOps ?? []) {
-    const actual = await isDir(op.destDir);
+    const actual = await exists(op.destDir);
     if (actual !== op.destExisted) throw new ConflictError(op.destDir, op.destExisted ? 'dir' : null, actual ? 'dir' : null);
     if (op.op === 'copy-dir' && !(await isDir(op.srcDir!))) throw new ConflictError(op.srcDir!, 'dir', null);
   }

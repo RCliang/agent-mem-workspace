@@ -11,6 +11,7 @@ import { piAdapter } from './adapters/pi.js';
 import { qoderAdapter } from './adapters/qoder.js';
 import { zcodeAdapter } from './adapters/zcode.js';
 import { expandHome, type Context } from './context.js';
+import { markAlsoReadBy } from './fsutil.js';
 import { readState, writeState } from './store.js';
 import type { AgentAdapter, AgentId, MemoryItem, ProjectInfo } from './types.js';
 
@@ -136,17 +137,7 @@ export class Hub {
   /** All memories visible to every agent for a project (or only globals when `projectPath` is null). */
   async memories(projectPath: string | null): Promise<MemoryItem[]> {
     const items = (await Promise.all(this.adapters.map((a) => a.readMemories(projectPath)))).flat();
-    const byReal = new Map<string, MemoryItem[]>();
-    for (const item of items) {
-      if (item.kind === 'session') continue;
-      const real = await fs.realpath(item.filePath).catch(() => item.filePath);
-      byReal.set(real, [...(byReal.get(real) ?? []), item]);
-    }
-    for (const group of byReal.values()) {
-      for (const item of group) {
-        item.alsoReadBy = [...new Set(group.map((g) => g.agent).filter((a) => a !== item.agent))];
-      }
-    }
+    await markAlsoReadBy(items.filter((item) => item.kind !== 'session'), (item) => item.filePath);
     for (const item of items) {
       const root = item.scope === 'global' ? null : item.projectPath;
       item.isWriteTarget = item.kind !== 'session' && item.filePath === this.adapter(item.agent).instructionFile(root).filePath;

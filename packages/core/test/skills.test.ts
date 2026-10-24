@@ -96,4 +96,19 @@ describe('skill transfer and delete', () => {
     fs.rmSync(reach.dirPath, { recursive: true });
     await expect(applyPlan(hub.ctx, plan)).rejects.toThrow(/changed on disk/i);
   });
+
+  it('treats a stray file at the destination as a conflict and can overwrite it', async () => {
+    const { hub, project } = await setup();
+    const browse = await findSkill(hub, 'claude-code:browse', project);
+    // Not a directory: the old check (isDir) missed it and the copy would fail mid-apply.
+    const stray = path.join(hub.ctx.home, '.pi', 'agent', 'skills', 'browse');
+    fs.mkdirSync(path.dirname(stray), { recursive: true });
+    fs.writeFileSync(stray, 'not a skill folder');
+    await expect(planSkillTransfer(hub, browse, 'pi')).rejects.toThrow(/already has a skill named/);
+
+    const plan = await planSkillTransfer(hub, browse, 'pi', { overwrite: true });
+    await applyPlan(hub.ctx, plan);
+    expect(fs.statSync(stray).isDirectory()).toBe(true);
+    expect(read(path.join(stray, 'SKILL.md'))).toMatch(/headless browser/);
+  });
 });

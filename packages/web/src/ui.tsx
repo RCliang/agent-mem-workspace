@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ComponentType, ReactNode } from 'react';
 import { createContext, useContext } from 'react';
 import type { Info } from './api';
 
@@ -35,6 +35,22 @@ export function relativeTime(ms: number): string {
   return `${Math.round(h / 24)}d ago`;
 }
 
+export function formatSize(n: number): string {
+  return n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Shared centred empty state with icon, line and optional action. */
+export function EmptyState({ icon: Icon, title, hint, action }: { icon?: ComponentType<{ className?: string }>; title: string; hint?: string; action?: ReactNode }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+      {Icon && <Icon className="size-8 text-ink-500" aria-hidden />}
+      <p className="text-[13px] text-paper-dim">{title}</p>
+      {hint && <p className="max-w-[46ch] text-[12px] text-paper-mute">{hint}</p>}
+      {action}
+    </div>
+  );
+}
+
 export function AgentDot({ agent, size = 8 }: { agent: string; size?: number }) {
   return <span aria-hidden className="inline-block shrink-0 rounded-full" style={{ width: size, height: size, background: agentColor(agent) }} />;
 }
@@ -65,7 +81,7 @@ export function Tag({ children, tone = 'plain', title }: { children: ReactNode; 
     <span
       title={title}
       className={cx(
-        'inline-flex items-center gap-1 rounded px-1.5 py-px text-[11px] font-medium leading-4',
+        'inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-px text-[11px] font-medium leading-4',
         tone === 'plain' && 'bg-ink-700 text-paper-dim',
         tone === 'warn' && 'bg-warn/15 text-warn',
         tone === 'ok' && 'bg-ok/15 text-ok',

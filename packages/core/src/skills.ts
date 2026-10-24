@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { idFor, isDir, listDir, readHeadLines, walk } from './fsutil.js';
+import { exists, idFor, isDir, listDir, markAlsoReadBy, readHeadLines, walk } from './fsutil.js';
 import type { Hub } from './hub.js';
 import type { Plan } from './plan.js';
 import type { AgentAdapter, AgentId, SkillItem, SkillRootLocation } from './types.js';
@@ -93,16 +93,7 @@ export async function listSkills(hub: Hub, projectPath: string | null): Promise<
     }
   }
   // Same story as memories: a directory reached through several roots is one skill.
-  const byReal = new Map<string, SkillItem[]>();
-  for (const item of items) {
-    const real = await fs.realpath(item.dirPath).catch(() => item.dirPath);
-    byReal.set(real, [...(byReal.get(real) ?? []), item]);
-  }
-  for (const group of byReal.values()) {
-    for (const item of group) {
-      item.alsoReadBy = [...new Set(group.map((g) => g.agent).filter((a) => a !== item.agent))];
-    }
-  }
+  await markAlsoReadBy(items, (s) => s.dirPath);
   return items;
 }
 
@@ -111,7 +102,7 @@ export async function findSkill(hub: Hub, idOrRef: string, projectPath: string |
   const byId = skills.find((s) => s.id === idOrRef);
   if (byId) return byId;
   const m = /^([\w-]+):(.+)$/.exec(idOrRef);
-  const name = m?.[2] ?? idOrRef;
+  const name = m && !/^[A-Za-z]:[\\/]/.test(idOrRef) ? m[2]! : idOrRef;
   const matches = skills.filter((s) => s.name === name && (!m || s.agent === m[1]));
   if (matches.length === 0) throw new Error(`No skill matches "${idOrRef}"`);
   if (matches.length > 1) throw new Error(`Skill "${name}" exists in ${matches.length} libraries: ${matches.map((s) => s.agent).join(', ')}. Prefix it with agent:name.`);
@@ -143,7 +134,7 @@ export async function planSkillTransfer(hub: Hub, skill: SkillItem, target: Agen
   const targetName = target === SHARED_AGENT.id ? SHARED_AGENT.displayName : hub.adapter(target).displayName;
   const destDir = path.join(skillTargetDir(hub, target, skill.scope, skill.projectPath), skill.name);
   if (destDir === skill.dirPath) throw new Error('Source and target library are the same');
-  const destExisted = await isDir(destDir);
+  const destExisted = await exists(destDir);
   if (destExisted && !opts.overwrite) {
     throw new Error(`${targetName} already has a skill named "${skill.name}"; pass overwrite to replace it`);
   }

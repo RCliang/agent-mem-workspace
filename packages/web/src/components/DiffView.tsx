@@ -39,7 +39,7 @@ export function DiffView({ before, after, className }: { before: string; after: 
   if (!changed) return <p className="px-4 py-3 text-[13px] text-paper-mute">No changes.</p>;
   return (
     <div className={cx('overflow-auto font-mono text-[12.5px] leading-[1.6]', className)}>
-      <table className="w-full border-collapse">
+      <table className="w-full min-w-max border-collapse">
         <tbody>
           {rows.map((r, i) =>
             r.kind === 'gap' ? (
@@ -50,9 +50,9 @@ export function DiffView({ before, after, className }: { before: string; after: 
               </tr>
             ) : (
               <tr key={i} className={cx(r.kind === 'add' && 'bg-ok/10', r.kind === 'del' && 'bg-danger/10')}>
-                <td className="w-10 select-none px-2 text-right align-top text-paper-mute/70">{r.oldNo ?? ''}</td>
+                <td className="sticky left-0 w-10 select-none bg-inherit px-2 text-right align-top text-paper-mute/70">{r.oldNo ?? ''}</td>
                 <td className="w-10 select-none px-2 text-right align-top text-paper-mute/70">{r.newNo ?? ''}</td>
-                <td className="whitespace-pre-wrap break-all pr-4 align-top">
+                <td className="whitespace-pre pr-4 align-top">
                   <span className={cx('mr-2 select-none', r.kind === 'add' ? 'text-ok' : r.kind === 'del' ? 'text-danger' : 'text-transparent')}>
                     {r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}
                   </span>

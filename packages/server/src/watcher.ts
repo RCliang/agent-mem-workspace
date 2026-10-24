@@ -35,9 +35,14 @@ export async function watchTargets(hub: Hub): Promise<WatchTargets> {
   }
   for (const s of await listShares(hub.ctx)) shallow.add(path.dirname(s.sourcePath));
   // Skill libraries are small, bounded trees (one folder per skill).
+  const detected = new Set<string>();
+  for (const a of hub.adapters) {
+    if (await a.detect()) detected.add(a.id);
+  }
   for (const p of [null, ...projects.map((x) => x.path)]) {
     for (const r of sharedSkillRoots(hub.ctx, p)) deep.add(r.dir);
     for (const a of hub.adapters) {
+      if (!detected.has(a.id)) continue;
       for (const r of a.skillRoots?.(p) ?? []) deep.add(r.dir);
     }
   }

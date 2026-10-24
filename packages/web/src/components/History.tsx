@@ -1,10 +1,18 @@
-import { RotateCcw } from 'lucide-react';
+import { History as HistoryIcon, RotateCcw } from 'lucide-react';
 import type { BackupEntry } from '../api';
 import { Button, relativeTime, Tag, useTildify } from '../ui';
 
 export function History({ entries, onUndo }: { entries: BackupEntry[]; onUndo: (id: string) => void }) {
   const tildify = useTildify();
-  if (entries.length === 0) return <p className="p-8 text-[13px] text-paper-mute">No changes yet. Every write agent-mem makes is recorded here and can be undone.</p>;
+  if (entries.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+        <HistoryIcon className="size-8 text-ink-500" aria-hidden />
+        <p className="text-[13px] text-paper-dim">No changes yet.</p>
+        <p className="max-w-[46ch] text-[12px] text-paper-mute">Every write agent-mem makes is recorded here and can be undone. Edit a memory or share one to see history.</p>
+      </div>
+    );
+  }
   return (
     <div className="h-full overflow-auto p-5">
       <ol className="max-w-[920px] divide-y divide-ink-700/70 overflow-hidden rounded-xl border border-ink-700">

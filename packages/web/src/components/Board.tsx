@@ -16,7 +16,7 @@ import {
 import { ArrowRightLeft, BrainCircuit, FilePlus2, FileText, Link2, MessagesSquare } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, api, type AgentSummary, type MemoryItem } from '../api';
-import { AgentDot, cx, relativeTime, Tag, useTildify } from '../ui';
+import { AgentDot, cx, formatSize, relativeTime, Tag, useTildify } from '../ui';
 import { ArmedAction } from './ArmedAction';
 import { useToast } from './Toasts';
 
@@ -46,10 +46,6 @@ function KindIcon({ kind, className }: { kind: MemoryItem['kind']; className?: s
   if (kind === 'session') return <MessagesSquare className={className} />;
   if (kind === 'auto-memory') return <BrainCircuit className={className} />;
   return <FileText className={className} />;
-}
-
-function formatSize(n: number) {
-  return n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function CardBody({ item, agents, dragging }: { item: MemoryItem; agents: AgentSummary[]; dragging?: boolean }) {
@@ -227,6 +223,8 @@ function Column({
   agents,
   dragged,
   project,
+  emptyHint,
+  onClearSearch,
   onOpen,
   onSend,
   onCreate,
@@ -238,6 +236,9 @@ function Column({
   agents: AgentSummary[];
   dragged: MemoryItem | null;
   project: string | null;
+  /** Shown instead of the default text when a search emptied the column. */
+  emptyHint?: string;
+  onClearSearch?: () => void;
   onOpen: (m: MemoryItem) => void;
   onSend: (item: MemoryItem, agent: string) => void;
   onCreate: (agent: string) => void;
@@ -272,7 +273,16 @@ function Column({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {groups.length === 0 && <p className="px-1 py-2 text-[13px] text-paper-mute">No memory files for this agent here yet.</p>}
+        {groups.length === 0 && (
+          <p className="px-1 py-2 text-[13px] text-paper-mute">
+            {emptyHint ?? 'No memory files for this agent here yet.'}
+            {emptyHint && onClearSearch && (
+              <button type="button" onClick={onClearSearch} className="ml-1 text-signal hover:underline">
+                clear
+              </button>
+            )}
+          </p>
+        )}
         {groups.map(([kind, xs]) => (
           <div key={kind} className="mb-4 last:mb-0">
             <h3 className="mb-1.5 px-1 text-[12px] font-medium text-paper-mute">
@@ -319,6 +329,8 @@ export function Board({
   agents,
   memories,
   project,
+  query,
+  onClearSearch,
   onOpen,
   onDrop,
   onCreate,
@@ -328,6 +340,9 @@ export function Board({
   agents: AgentSummary[];
   memories: MemoryItem[];
   project: string | null;
+  /** Active search query, so empty columns can say why they are empty. */
+  query?: string;
+  onClearSearch?: () => void;
   onOpen: (m: MemoryItem) => void;
   onDrop: (item: MemoryItem, targetAgent: string) => void;
   onCreate: (agent: string) => void;
@@ -426,6 +441,8 @@ export function Board({
             items={memories.filter((m) => m.agent === a.id)}
             dragged={dragged}
             project={project}
+            emptyHint={query?.trim() ? `No matches for “${query.trim()}” in this column.` : undefined}
+            onClearSearch={onClearSearch}
             onOpen={onOpen}
             onSend={onDrop}
             onCreate={onCreate}

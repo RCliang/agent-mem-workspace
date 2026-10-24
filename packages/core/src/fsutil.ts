@@ -89,3 +89,21 @@ export function safeJson(line: string): unknown {
     return undefined;
   }
 }
+
+/**
+ * Group items that resolve to the same real path and fill `alsoReadBy` on each
+ * (used for memories and skills: one file or folder read through several roots).
+ */
+export async function markAlsoReadBy<T extends { agent: string; alsoReadBy: string[] }>(items: T[], pathOf: (item: T) => string): Promise<void> {
+  const byReal = new Map<string, T[]>();
+  for (const item of items) {
+    const p = pathOf(item);
+    const real = await fs.realpath(p).catch(() => p);
+    byReal.set(real, [...(byReal.get(real) ?? []), item]);
+  }
+  for (const group of byReal.values()) {
+    for (const item of group) {
+      item.alsoReadBy = [...new Set(group.map((g) => g.agent).filter((a) => a !== item.agent))];
+    }
+  }
+}
