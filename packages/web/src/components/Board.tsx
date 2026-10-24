@@ -15,8 +15,10 @@ import {
 } from '@dnd-kit/core';
 import { ArrowRightLeft, BrainCircuit, FilePlus2, FileText, Link2, MessagesSquare } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { AgentSummary, MemoryItem } from '../api';
-import { AgentDot, agentColor, cx, relativeTime, Tag, useTildify } from '../ui';
+import { ApiError, api, type AgentSummary, type MemoryItem } from '../api';
+import { AgentDot, cx, relativeTime, Tag, useTildify } from '../ui';
+import { ArmedAction } from './ArmedAction';
+import { useToast } from './Toasts';
 
 /**
  * PointerSensor ignores events whose `isPrimary` flag is false. Remote desktops
@@ -94,16 +96,42 @@ function CardBody({ item, agents, dragging }: { item: MemoryItem; agents: AgentS
   );
 }
 
+function deleteArmedLabel(item: MemoryItem, agents: AgentSummary[]) {
+  if (item.alsoReadBy.length === 0) return 'Delete this file?';
+  const names = item.alsoReadBy.map((id) => agents.find((a) => a.id === id)?.displayName ?? id);
+  return `Delete? Also read by ${names.join(', ')}`;
+}
+
+function HideHandle({ agentId }: { agentId: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `hide:${agentId}`, data: { kind: 'hide', agentId } });
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      aria-label="Drag off this column to hide the agent"
+      {...listeners}
+      {...attributes}
+      className={cx('cursor-grab rounded-full active:cursor-grabbing', isDragging && 'opacity-40')}
+    >
+      <AgentDot agent={agentId} size={10} />
+    </button>
+  );
+}
+
 function DraggableCard({
   item,
   agents,
   onOpen,
   onSend,
+  onReveal,
+  onDelete,
 }: {
   item: MemoryItem;
   agents: AgentSummary[];
   onOpen: (m: MemoryItem) => void;
   onSend: (item: MemoryItem, agent: string) => void;
+  onReveal: (item: MemoryItem) => void;
+  onDelete: (item: MemoryItem) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${item.agent}:${item.id}`, data: { item } });
   const [open, setOpen] = useState(false);
@@ -135,6 +163,18 @@ function DraggableCard({
       >
         <CardBody item={item} agents={agents} />
       </button>
+      {item.kind === 'instructions' && (
+        <div className="mt-1 flex items-center justify-end gap-1">
+          <button
+            type="button"
+            className="rounded px-1.5 py-0.5 text-[11px] text-paper-mute hover:bg-ink-800 hover:text-paper"
+            onClick={() => onReveal(item)}
+          >
+            Reveal
+          </button>
+          <ArmedAction label="Delete" armedLabel={deleteArmedLabel(item, agents)} onConfirm={() => onDelete(item)} />
+        </div>
+      )}
       {targets.length > 0 && (
         <div ref={menuRef} className="absolute top-2 right-2">
           <button
@@ -190,6 +230,8 @@ function Column({
   onOpen,
   onSend,
   onCreate,
+  onReveal,
+  onDelete,
 }: {
   agent: AgentSummary;
   items: MemoryItem[];
@@ -199,11 +241,14 @@ function Column({
   onOpen: (m: MemoryItem) => void;
   onSend: (item: MemoryItem, agent: string) => void;
   onCreate: (agent: string) => void;
+  onReveal: (item: MemoryItem) => void;
+  onDelete: (item: MemoryItem) => void;
 }) {
   const hint = hintFor(dragged, agent.id);
   const disabled = hint?.kind === 'source' || hint?.kind === 'native';
   const { setNodeRef, isOver } = useDroppable({ id: agent.id, disabled });
-  const hasInstructions = items.some((i) => i.kind === 'instructions' && i.scope === (project ? 'project' : 'global') && i.agent === agent.id);
+  const scope = project ? 'project' : 'global';
+  const hasWriteTarget = items.some((i) => i.isWriteTarget && i.scope === scope && i.agent === agent.id);
   const groups = KIND_ORDER.map((k) => [k, items.filter((i) => i.kind === k)] as const).filter(([, xs]) => xs.length > 0);
 
   return (
@@ -217,8 +262,8 @@ function Column({
         dragged && disabled && 'opacity-55',
       )}
     >
-      <header className="flex items-center gap-2.5 border-b border-ink-700 px-4 py-3">
-        <span className="h-4 w-1 rounded-full" style={{ background: agentColor(agent.id) }} aria-hidden />
+      <header data-agent-header={agent.id} className="flex items-center gap-2.5 border-b border-ink-700 px-4 py-3">
+        <HideHandle agentId={agent.id} />
         <h2 className="text-[14px] font-semibold">{agent.displayName}</h2>
         {!agent.detected && <Tag tone="warn">not installed</Tag>}
         <span className="ml-auto text-[11px] text-paper-mute" title={agent.capabilities.imports ? 'Reads @path imports' : 'Shared content is inlined'}>
@@ -235,12 +280,12 @@ function Column({
             </h3>
             <ul className="space-y-2">
               {xs.map((item) => (
-                <DraggableCard key={item.id} item={item} agents={agents} onOpen={onOpen} onSend={onSend} />
+                <DraggableCard key={item.id} item={item} agents={agents} onOpen={onOpen} onSend={onSend} onReveal={onReveal} onDelete={onDelete} />
               ))}
             </ul>
           </div>
         ))}
-        {!hasInstructions && (
+        {!hasWriteTarget && (
           <button
             type="button"
             onClick={() => onCreate(agent.id)}
@@ -277,6 +322,8 @@ export function Board({
   onOpen,
   onDrop,
   onCreate,
+  onHide,
+  onChanged,
 }: {
   agents: AgentSummary[];
   memories: MemoryItem[];
@@ -284,8 +331,12 @@ export function Board({
   onOpen: (m: MemoryItem) => void;
   onDrop: (item: MemoryItem, targetAgent: string) => void;
   onCreate: (agent: string) => void;
+  onHide: (agentId: string) => void;
+  onChanged: () => void;
 }) {
   const [dragged, setDragged] = useState<MemoryItem | null>(null);
+  const [hiding, setHiding] = useState<string | null>(null);
+  const toast = useToast();
   // dnd-kit drops at the last pointermove. A pointer that jumps (remote desktop,
   // some automation) only reports the final position on pointerup, so remember it.
   const pointer = useRef({ x: 0, y: 0 });
@@ -306,18 +357,61 @@ export function Board({
     return hits.length > 0 ? hits : rectIntersection(args);
   };
 
-  const onDragStart = (e: DragStartEvent) => setDragged((e.active.data.current as { item: MemoryItem }).item);
+  const onDragStart = (e: DragStartEvent) => {
+    const data = e.active.data.current as { kind?: string; agentId?: string; item?: MemoryItem } | undefined;
+    if (data?.kind === 'hide') {
+      setHiding(data.agentId ?? null);
+      return;
+    }
+    setDragged(data?.item ?? null);
+  };
   const onDragEnd = (e: DragEndEvent) => {
-    const item = (e.active.data.current as { item: MemoryItem }).item;
+    const data = e.active.data.current as { kind?: string; agentId?: string; item?: MemoryItem } | undefined;
+    if (data?.kind === 'hide') {
+      setHiding(null);
+      const header = document.elementFromPoint(pointer.current.x, pointer.current.y)?.closest('[data-agent-header]');
+      const under = header instanceof HTMLElement ? header.dataset.agentHeader : undefined;
+      if (data.agentId && under !== data.agentId) onHide(data.agentId);
+      return;
+    }
+    const item = data?.item;
     setDragged(null);
+    if (!item) return;
     const column = document.elementFromPoint(pointer.current.x, pointer.current.y)?.closest('[data-agent-column]');
     const underPointer = column instanceof HTMLElement ? column.dataset.agentColumn : undefined;
     const target = underPointer ?? (e.over?.id as string | undefined);
     if (target && target !== item.agent && !item.alsoReadBy.includes(target)) onDrop(item, target);
   };
 
+  async function reveal(item: MemoryItem) {
+    try {
+      await api.revealMemory(item.id, project);
+    } catch (e) {
+      toast({ tone: 'error', message: (e as Error).message });
+    }
+  }
+
+  async function remove(item: MemoryItem) {
+    try {
+      const res = await api.deleteMemory(item.id, project, item.hash);
+      toast({ tone: 'ok', message: res.backupId ? `Deleted ${item.title}` : `${item.title} is already gone` });
+      onChanged();
+    } catch (e) {
+      toast({ tone: 'error', message: e instanceof ApiError ? e.message : (e as Error).message });
+    }
+  }
+
   return (
-    <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragged(null)}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={collision}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => {
+        setDragged(null);
+        setHiding(null);
+      }}
+    >
       <div className="flex h-full gap-4 overflow-x-auto p-5">
         {agents.length === 0 && (
           <p className="m-auto rounded-xl border border-dashed border-ink-600 px-6 py-8 text-center text-[13px] text-paper-mute">
@@ -335,11 +429,17 @@ export function Board({
             onOpen={onOpen}
             onSend={onDrop}
             onCreate={onCreate}
+            onReveal={(item) => void reveal(item)}
+            onDelete={(item) => void remove(item)}
           />
         ))}
       </div>
-      <DragOverlay dropAnimation={{ duration: 220, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }}>
-        {dragged ? (
+      <DragOverlay dropAnimation={{ duration: 220, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }} style={{ pointerEvents: 'none' }}>
+        {hiding ? (
+          <div className="pointer-events-none">
+            <AgentDot agent={hiding} size={12} />
+          </div>
+        ) : dragged ? (
           <div className="pointer-events-none w-[320px] cursor-grabbing">
             <CardBody item={dragged} agents={agents} dragging />
           </div>

@@ -1,44 +1,51 @@
+import type { TransferRender } from '@agent-mem/core';
 import { FileDiff, FilePlus2, Link2, ShieldAlert, Sparkles, Trash2, X } from 'lucide-react';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, type Plan } from '../api';
-import { Button, InfoContext, Tag, cx, useTildify } from '../ui';
+import { Button, Tag, cx, useTildify } from '../ui';
 import { DiffView } from './DiffView';
 import { useToast } from './Toasts';
 
-export interface PlanRequest {
-  load: (opts: { llm: boolean }) => Promise<Plan>;
-  /** Handoffs can be re-summarized with the configured LLM. */
-  llmToggle?: boolean;
-}
+export type PlanRequest =
+  | { kind: 'transfer'; load: (render: TransferRender) => Promise<Plan> }
+  | { kind: 'share'; load: () => Promise<Plan> }
+  | { kind: 'unshare'; load: () => Promise<Plan> };
 
 export function PlanDialog({ request, onClose, onApplied }: { request: PlanRequest; onClose: () => void; onApplied: () => void }) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const { llm: llmConfigured, llmLocal } = useContext(InfoContext);
-  const [llm, setLlm] = useState(() => llmConfigured);
   const [active, setActive] = useState(0);
   const tildify = useTildify();
   const toast = useToast();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const ticket = useRef(0);
 
   useEffect(() => {
     const d = dialogRef.current;
     if (d && !d.open) d.showModal();
   }, []);
 
+  const run = useCallback(
+    async (render?: TransferRender) => {
+      const mine = ++ticket.current;
+      setPlan(null);
+      setError(null);
+      try {
+        const next = request.kind === 'transfer' ? await request.load(render ?? 'verbatim') : await request.load();
+        if (ticket.current !== mine) return;
+        setPlan(next);
+        setActive(0);
+      } catch (e) {
+        if (ticket.current === mine) setError((e as Error).message);
+      }
+    },
+    [request],
+  );
+
   useEffect(() => {
-    let cancelled = false;
-    setPlan(null);
-    setError(null);
-    request
-      .load({ llm })
-      .then((p) => !cancelled && setPlan(p))
-      .catch((e: Error) => !cancelled && setError(e.message));
-    return () => {
-      cancelled = true;
-    };
-  }, [request, llm]);
+    void run(request.kind === 'transfer' ? 'verbatim' : undefined);
+  }, [request, run]);
 
   async function apply() {
     if (!plan) return;
@@ -147,19 +154,10 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
       </div>
 
       <footer className="flex items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
-        {request.llmToggle && (
-          <label
-            className={cx('flex items-center gap-2 text-[13px]', !llmConfigured && 'opacity-60')}
-            title={
-              llmConfigured
-                ? `Refined by the target agent's own CLI${(llmLocal ?? []).length ? ` (${(llmLocal ?? []).join(', ')})` : ''}, then any other local agent, then the configured API. Uncheck for an instant rule-based draft.`
-                : 'Install an agent CLI (claude, codex, pi, gemini, opencode) or set AGENT_MEM_LLM_API_KEY to enable'
-            }
-          >
-            <input type="checkbox" className="accent-[var(--color-signal)]" checked={llm} disabled={!llmConfigured} onChange={(e) => setLlm(e.target.checked)} />
-            <Sparkles className="size-3.5 text-signal" />
-            Summarize with LLM
-          </label>
+        {request.kind === 'transfer' && (
+          <Button variant="quiet" onClick={() => void run('summary')}>
+            <Sparkles className="size-3.5 text-signal" /> Summarize
+          </Button>
         )}
         <span className="flex-1 text-[12px] text-paper-mute">Every write is backed up first and can be undone from History.</span>
         <Button variant="quiet" onClick={onClose}>

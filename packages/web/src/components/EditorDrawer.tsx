@@ -4,7 +4,9 @@ import CodeMirror from '@uiw/react-codemirror';
 import { AlertTriangle, Share2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, api, type AgentSummary, type MemoryItem } from '../api';
+import { renderMarkdown } from '../markdown';
 import { AgentDot, Button, Kbd, Tag, cx, useTildify } from '../ui';
+import { ArmedAction } from './ArmedAction';
 import { DiffView } from './DiffView';
 import { useToast } from './Toasts';
 
@@ -82,6 +84,18 @@ export function EditorDrawer({
       else toast({ tone: 'error', message: (e as Error).message });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function remove() {
+    try {
+      await api.deleteMemory(item.id, project, base.hash);
+      toast({ tone: 'ok', message: `Deleted ${tildify(item.filePath)}` });
+      onSaved();
+      onClose();
+    } catch (e) {
+      if (e instanceof ApiError && e.isConflict) setConflict(true);
+      else toast({ tone: 'error', message: (e as Error).message });
     }
   }
 
@@ -175,19 +189,38 @@ export function EditorDrawer({
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab === 'edit' ? (
-          <CodeMirror value={draft} onChange={setDraft} extensions={extensions} theme="none" height="100%" className="h-full" basicSetup={{ foldGutter: false }} />
+          <div className="flex h-full min-h-0 flex-col">
+            <article
+              className="md-preview max-h-[40%] shrink-0 overflow-y-auto border-b border-ink-700 px-5 py-4 text-[13px] leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(draft) }}
+            />
+            <div className="min-h-0 flex-1">
+              <CodeMirror value={draft} onChange={setDraft} extensions={extensions} theme="none" height="100%" className="h-full" basicSetup={{ foldGutter: false }} />
+            </div>
+          </div>
         ) : (
           <DiffView className="h-full bg-ink-950 py-2" before={base.content} after={draft} />
         )}
       </div>
 
       <footer className="flex items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
+        {item.kind === 'instructions' && (
+          <ArmedAction
+            label="Delete"
+            armedLabel={
+              item.alsoReadBy.length === 0
+                ? 'Delete this file?'
+                : `Delete? Also read by ${item.alsoReadBy.map((id) => agents.find((a) => a.id === id)?.displayName ?? id).join(', ')}`
+            }
+            onConfirm={() => void remove()}
+          />
+        )}
         <Tag>{item.scope === 'local' ? 'private' : item.scope}</Tag>
         <span className="flex-1 text-[12px] text-paper-mute">
           {dirty ? 'Unsaved changes' : 'Saved'} · <Kbd>Ctrl</Kbd> <Kbd>S</Kbd> to save
         </span>
-        <Button variant="quiet" disabled={!dirty} onClick={() => setDraft(base.content)}>
-          Discard
+        <Button variant="quiet" disabled={draft === base.content} onClick={() => setDraft(base.content)}>
+          Revert
         </Button>
         <Button variant="primary" disabled={!dirty || saving} onClick={() => void save()}>
           {saving ? 'Saving...' : 'Save'}

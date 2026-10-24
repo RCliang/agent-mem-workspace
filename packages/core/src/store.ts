@@ -125,6 +125,19 @@ export interface WriteOptions {
   reason: string;
 }
 
+/**
+ * Delete an instruction file. A missing file is already the end state.
+ * A hash mismatch leaves the file in place.
+ */
+export async function deleteFile(ctx: Context, filePath: string, expectedHash: string): Promise<BackupEntry | null> {
+  const hash = await currentHash(filePath);
+  if (hash == null) return null;
+  if (hash !== expectedHash) throw new ConflictError(filePath, expectedHash, hash);
+  const backup = await backupFile(ctx, filePath, `delete: ${filePath}`);
+  await fs.unlink(filePath);
+  return backup;
+}
+
 /** Write with optimistic concurrency and a backup entry. Writes through symlinks to their target. */
 export async function safeWrite(ctx: Context, filePath: string, content: string, opts: WriteOptions) {
   if (opts.expectedHash !== undefined) {

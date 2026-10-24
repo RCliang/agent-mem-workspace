@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { MemoryItem, Plan } from '@agent-mem/core';
 import { createApp, EventBus, startWatcher, watchTargets, type HubEvent } from '@agent-mem/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { revealCommand, revealFile, revealOpener } from '../src/reveal.js';
 import { setup } from '../../core/test/helpers.js';
 
 async function makeApp() {
@@ -111,6 +112,74 @@ describe('HTTP API', () => {
     const s = mems.find((m) => m.agent === 'pi' && m.kind === 'session')!;
     const res = await call('GET', `/api/session/${s.id}${q}`);
     expect(res.json.sessionId).toBe('pi-5e8a91');
+  });
+
+  it('deletes an instruction, and a second delete writes no backup', async () => {
+    const { call, project, bus } = await makeApp();
+    const events: HubEvent[] = [];
+    bus.on((e) => events.push(e));
+    const q = `?project=${encodeURIComponent(project)}`;
+    const mems: MemoryItem[] = (await call('GET', `/api/memories${q}`)).json;
+    const item = mems.find((m) => m.agent === 'qoder' && m.filePath.endsWith(`${path.sep}.qoder${path.sep}rules${path.sep}style.md`))!;
+    const before = ((await call('GET', '/api/backups')).json as { id: string }[]).length;
+
+    const removed = await call('DELETE', `/api/memory/${item.id}${q}`, { expectedHash: item.hash });
+    expect(removed.status).toBe(200);
+    expect(removed.json.backupId).toEqual(expect.any(String));
+    expect(fs.existsSync(item.filePath)).toBe(false);
+    expect(events).toContainEqual({ type: 'applied', files: [item.filePath] });
+
+    const again = await call('DELETE', `/api/memory/${item.id}${q}`, { expectedHash: item.hash });
+    expect(again.status).toBe(200);
+    expect(again.json).toEqual({ backupId: null });
+    expect(events.filter((e) => e.type === 'applied')).toHaveLength(1);
+    expect(((await call('GET', '/api/backups')).json as unknown[]).length).toBe(before + 1);
+
+    const missing = await call('DELETE', `/api/memory/missing-id${q}`, { expectedHash: 'none' });
+    expect(missing.status).toBe(200);
+    expect(missing.json).toEqual({ backupId: null });
+    expect(((await call('GET', '/api/backups')).json as unknown[]).length).toBe(before + 1);
+  });
+
+  it('keeps the file when a delete hash does not match', async () => {
+    const { call, project } = await makeApp();
+    const q = `?project=${encodeURIComponent(project)}`;
+    const mems: MemoryItem[] = (await call('GET', `/api/memories${q}`)).json;
+    const item = mems.find((m) => m.agent === 'claude-code' && m.filePath === path.join(project, 'CLAUDE.md'))!;
+    const before = fs.readFileSync(item.filePath, 'utf8');
+    const res = await call('DELETE', `/api/memory/${item.id}${q}`, { expectedHash: 'stale-hash' });
+    expect(res.status).toBe(409);
+    expect(fs.readFileSync(item.filePath, 'utf8')).toBe(before);
+  });
+
+  it('reveals a memory by id and ignores a path in the body', async () => {
+    const { call, project } = await makeApp();
+    const q = `?project=${encodeURIComponent(project)}`;
+    const mems: MemoryItem[] = (await call('GET', `/api/memories${q}`)).json;
+    const item = mems.find((m) => m.agent === 'codex' && m.filePath === path.join(project, 'AGENTS.md'))!;
+    const spy = vi.spyOn(revealOpener, 'spawn').mockImplementation(() => {});
+    try {
+      const res = await call('POST', `/api/memory/${item.id}/reveal${q}`, { path: '/tmp/not-the-memory' });
+      expect(res.status).toBe(200);
+      const expected = revealCommand(item.filePath);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(expected.command, expected.args);
+      const rendered = expected.args.join('\0');
+      expect(rendered.includes(item.filePath) || rendered === path.dirname(item.filePath)).toBe(true);
+      expect(rendered).not.toContain('/tmp/not-the-memory');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('does not open a folder whose parent is missing', async () => {
+    const spy = vi.spyOn(revealOpener, 'spawn').mockImplementation(() => {});
+    try {
+      await expect(revealFile(path.join('/tmp', `agent-mem-missing-${process.pid}`, 'gone.md'))).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('creates a missing instruction file', async () => {

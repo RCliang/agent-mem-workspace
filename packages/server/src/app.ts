@@ -4,6 +4,7 @@ import {
   applyPlan,
   ConflictError,
   currentHash,
+  deleteFile,
   listBackups,
   listShares,
   llmLocalSummarizers,
@@ -23,6 +24,7 @@ import {
 import { Hono, type Context as HonoContext } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { EventBus } from './events.js';
+import { revealFile } from './reveal.js';
 
 export interface AppOptions {
   hub: Hub;
@@ -93,6 +95,24 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
   api.get('/memories', async (c) => c.json(await hub.memories(projectParam(c))));
 
   api.get('/memory/:id', async (c) => c.json(await hub.findMemory(c.req.param('id'), projectParam(c))));
+
+  api.delete('/memory/:id', async (c) => {
+    const { expectedHash } = await c.req.json<{ expectedHash: string }>();
+    const item = (await hub.memories(projectParam(c))).find((m) => m.id === c.req.param('id'));
+    if (!item) return c.json({ backupId: null });
+    if (item.kind !== 'instructions') throw new Error('Only instructions can be deleted');
+    const backup = await deleteFile(hub.ctx, item.filePath, expectedHash);
+    if (!backup) return c.json({ backupId: null });
+    await syncShares(hub, item.filePath);
+    bus.emit({ type: 'applied', files: [item.filePath] });
+    return c.json({ backupId: backup.id });
+  });
+
+  api.post('/memory/:id/reveal', async (c) => {
+    const item = await hub.findMemory(c.req.param('id'), projectParam(c));
+    await revealFile(item.filePath);
+    return c.json({ ok: true });
+  });
 
   api.put('/memory/:id', async (c) => {
     const item = await hub.findMemory(c.req.param('id'), projectParam(c));

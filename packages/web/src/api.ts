@@ -1,4 +1,4 @@
-import type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy } from '@agent-mem/core';
+import type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy, TransferRender } from '@agent-mem/core';
 
 export type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy };
 
@@ -52,8 +52,11 @@ export const api = {
   previewShare: (project: string | null, memoryId: string, targetAgent: string, strategy?: ShareStrategy) =>
     request<Plan>('POST', '/api/share/preview', { project, memoryId, targetAgent, strategy }),
   previewUnshare: (shareId: string) => request<Plan>('POST', '/api/unshare/preview', { shareId }),
-  previewTransfer: (project: string | null, memoryId: string, targetAgent: string, llm = false) =>
-    request<Plan>('POST', '/api/transfer/preview', { project, memoryId, targetAgent, llm }),
+  previewTransfer: (project: string | null, memoryId: string, targetAgent: string, render: TransferRender) =>
+    request<Plan>('POST', '/api/transfer/preview', { project, memoryId, targetAgent, render }),
+  deleteMemory: (id: string, project: string | null, expectedHash: string) =>
+    request<{ backupId: string | null }>('DELETE', `/api/memory/${id}${q(project)}`, { expectedHash }),
+  revealMemory: (id: string, project: string | null) => request<{ ok: boolean }>('POST', `/api/memory/${id}/reveal${q(project)}`),
   apply: (plan: Plan) => request<{ backups: BackupEntry[]; files: string[] }>('POST', '/api/apply', { plan }),
   sync: () => request<{ updated: string[]; missing: string[] }>('POST', '/api/sync', {}),
   backups: () => request<BackupEntry[]>('GET', '/api/backups'),

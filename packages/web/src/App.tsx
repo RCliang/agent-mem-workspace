@@ -66,17 +66,34 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const toggleAgent = useCallback((id: string) => {
-    setHiddenAgents((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      localStorage.setItem(HIDDEN_AGENTS_KEY, JSON.stringify(next));
-      return next;
-    });
+  const persistHidden = useCallback((next: string[]) => {
+    localStorage.setItem(HIDDEN_AGENTS_KEY, JSON.stringify(next));
   }, []);
+  const hideAgent = useCallback(
+    (id: string) => {
+      setHiddenAgents((prev) => {
+        if (prev.includes(id)) return prev;
+        const next = [...prev, id];
+        persistHidden(next);
+        return next;
+      });
+    },
+    [persistHidden],
+  );
+  const toggleAgent = useCallback(
+    (id: string) => {
+      setHiddenAgents((prev) => {
+        const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+        persistHidden(next);
+        return next;
+      });
+    },
+    [persistHidden],
+  );
   const showAllAgents = useCallback(() => {
+    persistHidden([]);
     setHiddenAgents([]);
-    localStorage.setItem(HIDDEN_AGENTS_KEY, '[]');
-  }, []);
+  }, [persistHidden]);
   const visibleAgents = useMemo(() => agents.filter((a) => !hiddenAgents.includes(a.id)), [agents, hiddenAgents]);
   const matchesQuery = useCallback(
     (m: MemoryItem) => {
@@ -140,11 +157,12 @@ export function App() {
 
   const openTransfer = useCallback(
     (item: MemoryItem, targetAgent: string) =>
-      setPlan({ load: ({ llm }) => api.previewTransfer(project ?? null, item.id, targetAgent, llm), llmToggle: item.kind === 'session' }),
+      setPlan({ kind: 'transfer', load: (render) => api.previewTransfer(project ?? null, item.id, targetAgent, render) }),
     [project],
   );
   const openShare = useCallback(
-    (item: MemoryItem, targetAgent: string, strategy?: ShareStrategy) => setPlan({ load: () => api.previewShare(project ?? null, item.id, targetAgent, strategy) }),
+    (item: MemoryItem, targetAgent: string, strategy?: ShareStrategy) =>
+      setPlan({ kind: 'share', load: () => api.previewShare(project ?? null, item.id, targetAgent, strategy) }),
     [project],
   );
 
@@ -270,13 +288,24 @@ export function App() {
           <main className="min-w-0 flex-1 overflow-hidden">
             {project === undefined && !loadError && <div className="m-5 h-40 animate-pulse rounded-xl bg-ink-800" />}
             {loadError && <p className="m-5 rounded-lg border border-danger/40 bg-danger/8 px-4 py-3 text-[13px] text-danger">Could not load data: {loadError}</p>}
-            {project !== undefined && view === 'board' && <Board agents={visibleAgents} memories={visibleMemories} project={project} onOpen={(m) => setOpenId(m.id)} onDrop={openTransfer} onCreate={createInstructions} />}
+            {project !== undefined && view === 'board' && (
+              <Board
+                agents={visibleAgents}
+                memories={visibleMemories}
+                project={project}
+                onOpen={(m) => setOpenId(m.id)}
+                onDrop={openTransfer}
+                onCreate={createInstructions}
+                onHide={hideAgent}
+                onChanged={() => void reload()}
+              />
+            )}
             {project !== undefined && view === 'matrix' && (
               <Matrix
                 agents={visibleAgents}
                 rows={visibleRows}
                 onShare={openShare}
-                onUnshare={(id) => setPlan({ load: () => api.previewUnshare(id) })}
+                onUnshare={(id) => setPlan({ kind: 'unshare', load: () => api.previewUnshare(id) })}
                 onOpen={(m) => {
                   setOpenId(m.id);
                 }}
