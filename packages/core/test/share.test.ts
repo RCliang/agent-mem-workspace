@@ -78,8 +78,10 @@ describe('sharing', () => {
       'gemini:available',
       'cursor:available',
       'opencode:native',
+      'zcode:native',
+      'qoder:native',
     ]);
-    // AGENTS.md is read by both Codex and Pi but listed once.
+    // AGENTS.md is read by several agents but listed once.
     expect(rows.filter((r) => r.item.filePath === path.join(project, 'AGENTS.md'))).toHaveLength(1);
   });
 

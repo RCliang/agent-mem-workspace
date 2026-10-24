@@ -51,5 +51,10 @@ export function createSandbox(root) {
 
   write(path.join(home, '.config', 'opencode', 'AGENTS.md'), '# opencode global instructions\n\n- Prefer small, focused modules.\n');
 
+  write(path.join(home, '.zcode', 'AGENTS.md'), '# ZCode global instructions\n\n- Keep the public API small.\n');
+  write(path.join(home, '.qoder', 'AGENTS.md'), '# Qoder global instructions\n\n- Name the write target explicitly.\n');
+  write(path.join(project, 'AGENTS.local.md'), '# shop-api local notes\n\n- Do not commit this file.\n');
+  write(path.join(project, '.qoder', 'rules', 'style.md'), '# Style\n\n- Prefer named exports.\n');
+
   return { home, dataDir, project, otherProject };
 }

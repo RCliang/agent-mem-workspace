@@ -32,10 +32,19 @@ describe('HTTP API', () => {
 
   it('lists agents, projects and memories', async () => {
     const { call, project } = await makeApp();
-    expect((await call('GET', '/api/agents')).json.map((a: { id: string }) => a.id)).toEqual(['claude-code', 'codex', 'pi', 'gemini', 'cursor', 'opencode']);
+    expect((await call('GET', '/api/agents')).json.map((a: { id: string }) => a.id)).toEqual([
+      'claude-code',
+      'codex',
+      'pi',
+      'gemini',
+      'cursor',
+      'opencode',
+      'zcode',
+      'qoder',
+    ]);
     expect((await call('GET', '/api/projects')).json.some((p: { path: string }) => p.path === project)).toBe(true);
     const mems: MemoryItem[] = (await call('GET', `/api/memories?project=${encodeURIComponent(project)}`)).json;
-    expect(mems.length).toBe(17);
+    expect(mems.length).toBe(23);
     const globals: MemoryItem[] = (await call('GET', '/api/memories')).json;
     expect(globals.every((m) => m.scope === 'global')).toBe(true);
   });

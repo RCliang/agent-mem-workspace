@@ -33,6 +33,7 @@ export async function fileItem(
     mtimeMs: lst.mtimeMs,
     size: Buffer.byteLength(content),
     alsoReadBy: [],
+    isWriteTarget: false,
     isSymlink: lst.isSymbolicLink(),
   };
 }
@@ -70,6 +71,7 @@ export function sessionItem(agent: AgentId, head: SessionHead, projectPath: stri
     mtimeMs: head.mtimeMs,
     size: head.size,
     alsoReadBy: [],
+    isWriteTarget: false,
     isSymlink: false,
   };
 }

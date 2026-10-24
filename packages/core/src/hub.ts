@@ -8,6 +8,8 @@ import { declarativeAdapter, type DeclarativeAgentSpec } from './adapters/declar
 import { geminiAdapter } from './adapters/gemini.js';
 import { opencodeAdapter } from './adapters/opencode.js';
 import { piAdapter } from './adapters/pi.js';
+import { qoderAdapter } from './adapters/qoder.js';
+import { zcodeAdapter } from './adapters/zcode.js';
 import { expandHome, type Context } from './context.js';
 import { readState, writeState } from './store.js';
 import type { AgentAdapter, AgentId, MemoryItem, ProjectInfo } from './types.js';
@@ -35,24 +37,37 @@ const AGENT_ALIASES: Record<string, AgentId> = {
   oc: 'opencode',
 };
 
-const BUILTIN_AGENT_IDS = ['claude-code', 'codex', 'pi', 'gemini', 'cursor', 'opencode'];
+function builtinAdapters(ctx: Context): AgentAdapter[] {
+  return [
+    claudeCodeAdapter(ctx),
+    codexAdapter(ctx),
+    piAdapter(ctx),
+    geminiAdapter(ctx),
+    cursorAdapter(ctx),
+    opencodeAdapter(ctx),
+    zcodeAdapter(ctx),
+    qoderAdapter(ctx),
+  ];
+}
 
 export class Hub {
   private constructor(
     readonly ctx: Context,
     readonly adapters: AgentAdapter[],
+    private readonly builtinIds: ReadonlySet<string>,
   ) {}
 
   static async create(ctx: Context, extra: AgentAdapter[] = []): Promise<Hub> {
     const config = await readConfig(ctx);
-    const adapters: AgentAdapter[] = [claudeCodeAdapter(ctx), codexAdapter(ctx), piAdapter(ctx), geminiAdapter(ctx), cursorAdapter(ctx), opencodeAdapter(ctx)];
+    const builtins = builtinAdapters(ctx);
+    const adapters: AgentAdapter[] = [...builtins];
     for (const spec of config.agents ?? []) adapters.push(declarativeAdapter(ctx, spec));
     for (const p of config.plugins ?? []) {
       const mod = (await import(pathToFileURL(expandHome(ctx, p)).href)) as { default: (c: Context) => AgentAdapter };
       adapters.push(mod.default(ctx));
     }
     adapters.push(...extra);
-    return new Hub(ctx, adapters);
+    return new Hub(ctx, adapters, new Set(builtins.map((a) => a.id)));
   }
 
   adapter(id: AgentId): AgentAdapter {
@@ -103,14 +118,14 @@ export class Hub {
     if (!spec.displayName.trim()) throw new Error('displayName is required');
     if (!spec.homeDir.trim()) throw new Error('homeDir is required, e.g. ~/.deepseek');
     if (spec.projectFiles.length === 0) throw new Error('Pass at least one project file name');
-    if (BUILTIN_AGENT_IDS.includes(spec.id)) throw new Error(`"${spec.id}" is a built-in agent and cannot be redefined`);
+    if (this.builtinIds.has(spec.id)) throw new Error(`"${spec.id}" is a built-in agent and cannot be redefined`);
     const config = await readConfig(this.ctx);
     config.agents = [...(config.agents ?? []).filter((a) => a.id !== spec.id), spec];
     await writeState(this.ctx, 'config.json', config);
   }
 
   async removeAgent(id: string): Promise<void> {
-    if (BUILTIN_AGENT_IDS.includes(id)) throw new Error(`"${id}" is built in and cannot be removed`);
+    if (this.builtinIds.has(id)) throw new Error(`"${id}" is built in and cannot be removed`);
     const config = await readConfig(this.ctx);
     const remaining = (config.agents ?? []).filter((a) => a.id !== id);
     if (remaining.length === (config.agents ?? []).length) throw new Error(`No custom agent "${id}" in ${path.join(this.ctx.dataDir, 'config.json')}`);
@@ -131,6 +146,10 @@ export class Hub {
       for (const item of group) {
         item.alsoReadBy = [...new Set(group.map((g) => g.agent).filter((a) => a !== item.agent))];
       }
+    }
+    for (const item of items) {
+      const root = item.scope === 'global' ? null : item.projectPath;
+      item.isWriteTarget = item.kind !== 'session' && item.filePath === this.adapter(item.agent).instructionFile(root).filePath;
     }
     return items;
   }

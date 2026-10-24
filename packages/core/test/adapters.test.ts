@@ -15,6 +15,8 @@ describe('adapters', () => {
       ['gemini', true],
       ['cursor', true],
       ['opencode', true],
+      ['zcode', true],
+      ['qoder', true],
     ]);
   });
 
@@ -56,6 +58,12 @@ describe('adapters', () => {
       'pi|local|session|2026-10-22T08-00-00_pi-5e8a91.jsonl',
       'pi|project|instructions|AGENTS.md',
       'pi|project|instructions|CLAUDE.md',
+      'qoder|global|instructions|AGENTS.md',
+      'qoder|local|instructions|AGENTS.local.md',
+      'qoder|project|instructions|AGENTS.md',
+      'qoder|project|instructions|style.md',
+      'zcode|global|instructions|AGENTS.md',
+      'zcode|project|instructions|AGENTS.md',
     ]);
   });
 
@@ -63,7 +71,7 @@ describe('adapters', () => {
     const { hub, project } = await setup();
     const items = await hub.memories(project);
     const codexAgents = items.find((i) => i.agent === 'codex' && i.filePath === path.join(project, 'AGENTS.md'));
-    expect(codexAgents?.alsoReadBy).toEqual(['pi', 'opencode']);
+    expect(codexAgents?.alsoReadBy).toEqual(['pi', 'opencode', 'zcode', 'qoder']);
     const claudeMd = items.find((i) => i.agent === 'claude-code' && i.filePath === path.join(project, 'CLAUDE.md'));
     expect(claudeMd?.alsoReadBy).toEqual(['pi']);
   });
@@ -85,6 +93,28 @@ describe('adapters', () => {
     const openGlobal = items.find((i) => i.agent === 'opencode' && i.scope === 'global');
     expect(openGlobal?.filePath).toBe(path.join(home, '.config', 'opencode', 'AGENTS.md'));
     expect(hub.adapter('opencode').instructionFile(null).filePath).toBe(path.join(home, '.config', 'opencode', 'AGENTS.md'));
+
+    expect(hub.adapter('zcode').instructionFile(project).filePath).toBe(path.join(project, 'AGENTS.md'));
+    expect(hub.adapter('zcode').instructionFile(null).filePath).toBe(path.join(home, '.zcode', 'AGENTS.md'));
+    expect(hub.adapter('zcode').cli).toBeUndefined();
+    expect(hub.adapter('qoder').instructionFile(project).filePath).toBe(path.join(project, 'AGENTS.md'));
+    expect(hub.adapter('qoder').cli).toBeUndefined();
+  });
+
+  it('marks the instruction file as the write target and leaves Qoder rules false', async () => {
+    const { hub, project } = await setup();
+    const items = await hub.memories(project);
+    const agentsMd = items.filter((i) => i.filePath === path.join(project, 'AGENTS.md'));
+    expect(agentsMd.map((i) => i.agent)).toEqual(['codex', 'pi', 'opencode', 'zcode', 'qoder']);
+    expect(agentsMd.every((i) => i.isWriteTarget)).toBe(true);
+    const rule = items.find((i) => i.agent === 'qoder' && i.filePath === path.join(project, '.qoder', 'rules', 'style.md'));
+    expect(rule?.kind).toBe('instructions');
+    expect(rule?.scope).toBe('project');
+    expect(rule?.isWriteTarget).toBe(false);
+    const local = items.find((i) => i.agent === 'qoder' && i.filePath === path.join(project, 'AGENTS.local.md'));
+    expect(local?.scope).toBe('local');
+    expect(local?.isWriteTarget).toBe(false);
+    expect(items.filter((i) => i.kind === 'session').every((i) => i.isWriteTarget === false)).toBe(true);
   });
 
   it('resolves agent aliases for the extra agents', async () => {

@@ -9,9 +9,16 @@ describe('bundle export/import', () => {
     const { hub, project } = await setup();
     const bundle = await exportBundle(hub, project);
     expect(bundle.version).toBe(1);
-    expect(bundle.items.map((i) => i.relPath).sort()).toEqual(['.cursor/rules/backend.mdc', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md']);
+    expect(bundle.items.map((i) => i.relPath).sort()).toEqual([
+      '.cursor/rules/backend.mdc',
+      '.qoder/rules/style.md',
+      'AGENTS.local.md',
+      'AGENTS.md',
+      'CLAUDE.md',
+      'GEMINI.md',
+    ]);
     const agents = bundle.items.find((i) => i.relPath === 'AGENTS.md');
-    expect(agents?.agents.sort()).toEqual(['codex', 'opencode', 'pi']);
+    expect(agents?.agents.sort()).toEqual(['codex', 'opencode', 'pi', 'qoder', 'zcode']);
     expect(bundle.items.every((i) => !path.isAbsolute(i.relPath) && i.content.length > 0)).toBe(true);
     // Auto memory under ~/.claude and sessions stay out of the bundle.
     expect(bundle.items.some((i) => i.relPath.includes('.claude'))).toBe(false);

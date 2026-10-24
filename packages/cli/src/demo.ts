@@ -61,6 +61,10 @@ export function createDemoContext(): { ctx: Context; root: string } {
   write(path.join(home, '.cursor', 'rules', 'core.mdc'), '---\ndescription: Core conventions\n---\n\n- Use pnpm scripts only.\n');
   write(path.join(project, '.cursor', 'rules', 'backend.mdc'), '---\ndescription: Backend rules\n---\n\n- Validate inputs at the router layer.\n');
   write(path.join(home, '.config', 'opencode', 'AGENTS.md'), '# opencode global instructions\n\n- Prefer small, focused modules.\n');
+  write(path.join(home, '.zcode', 'AGENTS.md'), '# ZCode global instructions\n\n- Keep the public API small.\n');
+  write(path.join(home, '.qoder', 'AGENTS.md'), '# Qoder global instructions\n\n- Name the write target explicitly.\n');
+  write(path.join(project, 'AGENTS.local.md'), '# shop-api local notes\n\n- Do not commit this file.\n');
+  write(path.join(project, '.qoder', 'rules', 'style.md'), '# Style\n\n- Prefer named exports.\n');
 
   return { ctx: createContext({ home, dataDir: path.join(home, '.agent-mem'), env: {} }), root };
 }

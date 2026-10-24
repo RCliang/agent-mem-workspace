@@ -16,10 +16,12 @@ Overview: a local-first tool that shows the memory files of the coding agents in
 | Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`、`.gemini/GEMINI.md` | 不解析 |
 | Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | 不解析 |
 | opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | 不解析 |
+| ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | 不解析 |
+| Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`、`AGENTS.local.md`、`.qoder/rules/*.md` | 不解析 |
 
-同一个文件被多个 agent 读取时（项目里的 `AGENTS.md` 同时属于 Codex 和 Pi），界面只把它算作一份，并标出「also read by」。
+同一个文件被多个 agent 读取时（项目里的 `AGENTS.md` 同时属于 Codex、Pi、opencode、ZCode 和 Qoder），界面只把它算作一份，并标出「also read by」。
 
-工作记忆不一样。会话是各家自己的 JSONL，没法塞进另一个 agent 正在进行的对话里。拖过去时，agent-mem 会把会话整理成一份 `handoff.md`（目标、后续要求、改过的文件、跑过的命令、最后状态），写到目标 agent 下一次启动会读到的位置，并在写入前打码疑似密钥。勾选「Summarize with LLM」可以再润色这份摘要：**默认优先用本机已装 agent 自己的 CLI**（目标 agent → 来源 agent → 其他已装 agent，如 `claude -p`、`pi -p`、`codex exec`，无需任何 API Key），其次才用配置了 `AGENT_MEM_LLM_API_KEY` 的 OpenAI 兼容接口；全部不可用时回退到规则摘要。`AGENT_MEM_LLM_MODE=api|local` 可以强制只走某一条通道。
+工作记忆不一样。会话是各家自己的 JSONL，没法塞进另一个 agent 正在进行的对话里。拖过去时先按原文预览，点 Summarize 才整理成交接摘要（目标、后续要求、改过的文件、跑过的命令、最后状态），写到目标 agent 下一次启动会读到的位置，并在写入前打码疑似密钥。摘要优先用本机已装 agent 自己的 CLI（目标 agent → 来源 agent → 其他已装 agent，如 `claude -p`、`pi -p`、`codex exec`，无需任何 API Key），其次才用配置了 `AGENT_MEM_LLM_API_KEY` 的 OpenAI 兼容接口；没有可用模型时用规则摘要。`AGENT_MEM_LLM_MODE=api|local` 可以强制只走某一条通道。`agent-mem handoff` 走摘要，`agent-mem transfer` 默认原文，加上 `--summarize` 才摘要。
 
 ## 界面
 
@@ -75,7 +77,8 @@ agent-mem link ~/.claude/CLAUDE.md --to codex,pi --global --strategy copy --yes
 agent-mem shares
 agent-mem unlink <shareId> --yes
 agent-mem handoff --from codex --to claude -p . --yes
-agent-mem handoff --from codex --to pi --session <id> --llm --yes
+agent-mem handoff --from codex --to pi --session <id> --yes
+agent-mem transfer codex:AGENTS.md --to claude -p . --summarize --yes
 agent-mem edit claude:CLAUDE.md -p . --file ./CLAUDE.md
 agent-mem sync
 agent-mem undo                     # 撤销最近一次写入
