@@ -107,7 +107,7 @@ export function EditorDrawer({
         e.preventDefault();
         void saveRef.current();
       }
-      if (e.key === 'Escape' && !document.querySelector('dialog[open]')) onClose();
+      if (e.key === 'Escape' && !document.querySelector('dialog[open]') && !document.querySelector('[data-armed]')) onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

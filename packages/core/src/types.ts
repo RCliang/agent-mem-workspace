@@ -20,7 +20,6 @@ export interface MemoryItem {
   size: number;
   /** Other agents that natively read this exact file (e.g. AGENTS.md for Codex and Pi). */
   alsoReadBy: AgentId[];
-  /** True when this file is `instructionFile` for the item's scope. Rules and local files stay false. */
   isWriteTarget: boolean;
   isSymlink: boolean;
 }

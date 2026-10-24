@@ -15,7 +15,6 @@ export type TransferRender = 'verbatim' | 'summary';
 
 export interface TransferOptions {
   render: TransferRender;
-  /** Override for tests. */
   now?: Date;
 }
 
@@ -50,10 +49,12 @@ function transcriptForLlm(session: ParsedSession, budget = 24000): string {
     const text = m.text ? clip(m.text, 1500) : '';
     if (text || tools) parts.push(`${m.role.toUpperCase()}: ${text} ${tools}`.trim());
   }
-  let out = parts.join('\n');
-  // Keep the start (the goal) and the end (the current state) when the transcript is long.
-  if (out.length > budget) out = `${out.slice(0, budget / 3)}\n...\n${out.slice(-(budget * 2) / 3)}`;
-  return out;
+  return keepGoalAndCurrentState(parts.join('\n'), budget);
+}
+
+function keepGoalAndCurrentState(text: string, budget: number): string {
+  if (text.length <= budget) return text;
+  return `${text.slice(0, budget / 3)}\n...\n${text.slice(-(budget * 2) / 3)}`;
 }
 
 function firstParagraph(lines: string[]): string {
@@ -119,7 +120,6 @@ function documentPrompt(outline: string, source: string): string {
 
 const CLI_TIMEOUT_MS = 120_000;
 
-/** `null` when the CLI is missing, fails, or times out. */
 async function runAgentCli(cli: AgentCli, prompt: string): Promise<string | null> {
   return new Promise((resolve) => {
     const child = spawn(cli.command, cli.args(prompt), { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -212,7 +212,6 @@ async function previewText(hub: Hub, item: MemoryItem, target: AgentAdapter, opt
   return refineDraft(hub, [target, source, ...hub.adapters], outlineDocument(item.content), item.content, 'document');
 }
 
-/** Preview a drag onto another agent. `opts.render` is the only choice of body. */
 export async function planTransfer(hub: Hub, item: MemoryItem, targetAgent: AgentId, opts: TransferOptions): Promise<Plan> {
   const render = requireRender(opts?.render);
   const target = hub.adapter(targetAgent);
@@ -222,7 +221,7 @@ export async function planTransfer(hub: Hub, item: MemoryItem, targetAgent: Agen
   }
   const preview = await previewText(hub, item, target, { ...opts, render });
   if (item.kind === 'session') {
-    const plan = await planHandoff(hub, item, targetAgent, { body: preview.text });
+    const plan = await planHandoff(hub, item, targetAgent, preview.text);
     return { ...plan, notes: [...preview.notes, ...plan.notes] };
   }
   const targetPath = targetFileFor(target, item);

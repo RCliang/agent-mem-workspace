@@ -81,7 +81,6 @@ describe('sharing', () => {
       'zcode:native',
       'qoder:native',
     ]);
-    // AGENTS.md is read by several agents but listed once.
     expect(rows.filter((r) => r.item.filePath === path.join(project, 'AGENTS.md'))).toHaveLength(1);
   });
 

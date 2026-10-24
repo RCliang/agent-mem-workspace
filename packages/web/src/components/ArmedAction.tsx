@@ -19,8 +19,6 @@ export function ArmedAction({
     if (phase !== 'armed') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      // The editor also listens for Escape. Stopping it here leaves the drawer open.
-      e.stopPropagation();
       setPhase('idle');
     };
     const onPointer = (e: PointerEvent) => {
@@ -38,6 +36,7 @@ export function ArmedAction({
     <button
       ref={ref}
       type="button"
+      data-armed={phase === 'armed' ? '' : undefined}
       className={cx(
         'inline-flex h-7 items-center rounded-md px-2 text-[12px] font-medium',
         phase === 'armed' ? 'bg-danger/15 text-danger' : 'text-danger hover:bg-danger/10',

@@ -4,7 +4,6 @@ import { isDir, listDir } from '../fsutil.js';
 import type { AgentAdapter, MemoryItem } from '../types.js';
 import { fileItem, renderPlain } from './common.js';
 
-/** Qoder reads global and project `AGENTS.md`, a local file, and project rules. No CLI. */
 export function qoderAdapter(ctx: Context): AgentAdapter {
   const home = path.join(ctx.home, '.qoder');
   const id = 'qoder';

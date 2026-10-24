@@ -17,11 +17,6 @@ const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
 const EDIT_TOOLS = /^(edit|write|multiedit|multi_edit|notebookedit|apply_patch|str_replace|create|update)/i;
 const SHELL_TOOLS = /^(bash|shell|exec|exec_command|local_shell|run|terminal)/i;
 
-export interface HandoffOptions {
-  /** Finished preview body. Placement redacts this and does not summarize. */
-  body: string;
-}
-
 /** Deterministic summary that works offline; the LLM path refines it when configured. */
 export function summarizeSession(session: ParsedSession, sourceName: string, now = new Date()): string {
   const users = session.messages.filter((m) => m.role === 'user' && m.text);
@@ -117,14 +112,14 @@ export async function llmLocalSummarizers(hub: Hub): Promise<AgentId[]> {
   return out;
 }
 
-export async function planHandoff(hub: Hub, session: MemoryItem, targetAgent: AgentId, opts: HandoffOptions): Promise<Plan> {
+export async function planHandoff(hub: Hub, session: MemoryItem, targetAgent: AgentId, finishedText: string): Promise<Plan> {
   if (session.kind !== 'session') throw new Error('Handoffs start from a session');
   if (!session.projectPath) throw new Error('Session is not associated with a project');
   const source = hub.adapter(session.agent);
   const target = hub.adapter(targetAgent);
   const parsed = await (source.parseSession ?? ((p: string) => parseSessionFile(source.id, p)))(session.filePath);
   const notes: string[] = [];
-  const redacted = redact(opts.body);
+  const redacted = redact(finishedText);
   if (redacted.findings.length) notes.push(`Masked ${redacted.findings.reduce((n, f) => n + f.count, 0)} possible secret(s) before writing.`);
 
   const name = `handoff-${source.id}-${parsed.sessionId.replace(/[^\w-]/g, '').slice(0, 12) || idFor(source.id, session.filePath)}`;
