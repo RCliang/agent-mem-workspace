@@ -66,5 +66,28 @@ export function createDemoContext(): { ctx: Context; root: string } {
   write(path.join(project, 'AGENTS.local.md'), '# shop-api local notes\n\n- Do not commit this file.\n');
   write(path.join(project, '.qoder', 'rules', 'style.md'), '# Style\n\n- Prefer named exports.\n');
 
+  write(
+    path.join(home, '.claude', 'skills', 'browse', 'SKILL.md'),
+    '---\nname: browse\ndescription: |\n  Fast headless browser for QA testing. Navigate a URL, take screenshots\n  and verify page state.\n---\n\n## Usage\n\n- browse open <url>\n',
+  );
+  write(path.join(home, '.claude', 'skills', 'browse', 'references', 'commands.md'), '# Commands\n\n- open, click, screenshot\n');
+  write(
+    path.join(home, '.codex', 'skills', 'browse', 'SKILL.md'),
+    '---\nname: browse\ndescription: Open pages and assert on them from Codex.\n---\n\nbody\n',
+  );
+  write(
+    path.join(home, '.agents', 'skills', 'agent-reach', 'SKILL.md'),
+    '---\nname: agent-reach\ndescription: >\n  MUST USE when the user wants to research or search anything on the internet.\n---\n\nreach out\n',
+  );
+  write(path.join(home, '.agents', 'skills', 'agent-reach', 'references', 'engines.md'), '# Engines\n');
+  write(
+    path.join(project, '.agents', 'skills', 'akshare', 'SKILL.md'),
+    '---\nname: akshare\ndescription: Query A-share market data through akshare.\n---\n\nusage\n',
+  );
+  write(
+    path.join(project, '.claude', 'skills', 'shop-helper', 'SKILL.md'),
+    '---\nname: shop-helper\ndescription: Project-specific helpers for shop-api.\n---\n\nusage\n',
+  );
+
   return { ctx: createContext({ home, dataDir: path.join(home, '.agent-mem'), env: {} }), root };
 }

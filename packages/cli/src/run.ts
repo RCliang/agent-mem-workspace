@@ -11,16 +11,21 @@ import {
   createContext,
   expandHome,
   exportBundle,
+  findSkill,
   listBackups,
   listShares,
+  listSkills,
   orphanBackupCount,
   planImportBundle,
   planShare,
+  planSkillDelete,
+  planSkillTransfer,
   planTransfer,
   planUnshare,
   pruneBackups,
   registerImportedShares,
   safeWrite,
+  skillLibraries,
   syncShares,
   tildify,
   undoBackup,
@@ -86,6 +91,10 @@ function printPlan(io: Io, ctx: Context, plan: Plan) {
   io.stdout(`\n${plan.title}\n`);
   for (const n of plan.notes) io.stdout(`  ${n}\n`);
   if (plan.findings.length) io.stdout(`  Possible secrets: ${plan.findings.map((f) => `${f.count} ${f.type}`).join(', ')}\n`);
+  for (const op of plan.dirOps ?? []) {
+    const how = op.op === 'copy-dir' ? `copy folder${op.destExisted ? ', replacing the existing one' : ''}${op.srcDir ? ` <- ${tildify(ctx, op.srcDir)}` : ''}` : 'delete folder';
+    io.stdout(`\n${tildify(ctx, op.destDir)}  (${how})\n`);
+  }
   for (const w of plan.writes) {
     const how = w.symlinkTo ? `symlink -> ${w.symlinkTo}` : w.remove ? 'delete' : w.before == null ? 'create' : 'update';
     io.stdout(`\n${tildify(ctx, w.filePath)}  (${how})\n`);
@@ -358,6 +367,58 @@ export function buildProgram(io: Io): Command {
       }
       io.stdout('\nHide a column for an agent in the web UI, or run `agent-mem agents add` to register a custom one.\n');
     });
+
+  const skillsCmd = program.command('skills').description('Manage the skill libraries of every coding agent');
+  addLocate(skillsCmd.command('ls').description('List skills across libraries').option('--json', 'print JSON')).action(async (opts: LocateOpts & { json?: boolean }) => {
+    const hub = await openHub();
+    const project = await locate(hub, opts, 'cwd');
+    const skills = await listSkills(hub, project);
+    if (opts.json) {
+      io.stdout(`${JSON.stringify(skills, null, 2)}\n`);
+      return;
+    }
+    if (skills.length === 0) io.stdout('No skills found. Libraries are scanned per agent plus the shared ~/.agents/skills.\n');
+    for (const s of skills) {
+      const extra = s.shared ? '  shared' : '';
+      io.stdout(`${s.name.padEnd(24)} ${s.agent.padEnd(12)} ${s.scope.padEnd(8)} ${s.fileCount} file${s.fileCount === 1 ? '' : 's'}${extra}\n`);
+      io.stdout(`    ${tildify(hub.ctx, s.dirPath)}\n`);
+      if (s.description) io.stdout(`    ${s.description.slice(0, 120)}\n`);
+    }
+  });
+  skillsCmd
+    .command('libraries')
+    .description('List the skill libraries available here')
+    .action(async () => {
+      const hub = await openHub();
+      for (const l of await skillLibraries(hub)) io.stdout(`${l.id.padEnd(14)} ${l.displayName}\n`);
+    });
+  addLocate(
+    skillsCmd
+      .command('migrate')
+      .description('Copy or move a skill folder to another library')
+      .argument('<skill>', 'skill name, or agent:name when several libraries have it')
+      .requiredOption('--to <library>', 'target library id (see `skills libraries`; e.g. claude-code, codex, shared)')
+      .option('--move', 'remove the skill from the source library after copying')
+      .option('--overwrite', 'replace a skill with the same name in the target')
+      .option('-y, --yes', 'apply without asking'),
+  ).action(async (ref: string, opts: LocateOpts & { to: string; move?: boolean; overwrite?: boolean; yes?: boolean }) => {
+    const hub = await openHub();
+    const project = await locate(hub, opts, 'cwd');
+    const skill = await findSkill(hub, ref, project);
+    await commit(io, hub, [await planSkillTransfer(hub, skill, opts.to, { move: opts.move, overwrite: opts.overwrite })], opts.yes);
+  });
+  addLocate(
+    skillsCmd
+      .command('rm')
+      .description('Delete a skill folder (a full backup is kept for undo)')
+      .argument('<skill>', 'skill name, or agent:name')
+      .option('-y, --yes', 'apply without asking'),
+  ).action(async (ref: string, opts: LocateOpts & { yes?: boolean }) => {
+    const hub = await openHub();
+    const project = await locate(hub, opts, 'cwd');
+    const skill = await findSkill(hub, ref, project);
+    await commit(io, hub, [await planSkillDelete(hub, skill)], opts.yes);
+  });
 
   program
     .command('doctor')

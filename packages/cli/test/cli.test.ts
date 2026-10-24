@@ -253,6 +253,31 @@ describe('agent-mem cli', () => {
     expect(fs.readFileSync(path.join(target, 'AGENTS.md'), 'utf8')).toContain('shop-api agent guide');
   });
 
+  it('manages skills: ls, migrate with --move, rm and undo', async () => {
+    const env = await withHome();
+    const ls = capture();
+    expect(await run(['skills', 'ls', '-p', env.project], ls.io)).toBe(0);
+    expect(ls.text().out).toContain('agent-reach');
+    expect(ls.text().out).toContain('shared');
+
+    const migrate = capture();
+    expect(await run(['skills', 'migrate', 'codex:browse', '--to', 'shared', '--move', '-p', env.project, '--yes'], migrate.io)).toBe(0);
+    expect(fs.existsSync(path.join(env.home, '.agents', 'skills', 'browse', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(env.home, '.codex', 'skills', 'browse'))).toBe(false);
+    expect(migrate.text().out).toMatch(/delete folder/);
+
+    const dupe = capture();
+    expect(await run(['skills', 'migrate', 'claude-code:browse', '--to', 'shared', '-p', env.project, '--yes'], dupe.io)).toBe(1);
+    expect(dupe.text().err).toMatch(/already has a skill named/);
+
+    const rm = capture();
+    expect(await run(['skills', 'rm', 'akshare', '-p', env.project, '--yes'], rm.io)).toBe(0);
+    expect(rm.text().out).toMatch(/shared \.agents library/);
+    expect(fs.existsSync(path.join(env.project, '.agents', 'skills', 'akshare'))).toBe(false);
+    expect(await run(['undo'], capture().io)).toBe(0);
+    expect(fs.existsSync(path.join(env.project, '.agents', 'skills', 'akshare', 'SKILL.md'))).toBe(true);
+  });
+
   it('fails clearly for an unknown memory', async () => {
     const { project } = await withHome();
     const cap = capture();

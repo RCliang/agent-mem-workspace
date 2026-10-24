@@ -34,6 +34,8 @@ export function piAdapter(ctx: Context): AgentAdapter {
 
     watchRoots: () => [root],
 
+    skillRoots: () => [{ dir: path.join(root, 'skills'), scope: 'global' }],
+
     async listProjects() {
       const out: ProjectInfo[] = [];
       for (const name of await listDir(sessionsDir)) {

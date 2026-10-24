@@ -28,7 +28,8 @@ Overview: a local-first tool that shows the memory files of the coding agents in
 `agent-mem ui` 会在本地起一个网页。
 
 - **Board**：每个 agent 一列。点开卡片编辑 Markdown，保存前可以看 diff。把卡片拖到另一列会先弹出预览，确认后才写入。拖指令文件是一次性复制；拖会话会生成交接文档。
-- **搜索**：顶栏搜索框按标题、路径、内容过滤 Board 卡片和 matrix 行（按 `/` 聚焦，Esc 清空）。
+- **Skills**：独立的技能库视图（不占 Board）。每个 agent 一列：`~/.claude/skills`、`~/.codex/skills`、`~/.pi/agent/skills`、`~/.zcode/skills`、`~/.qoder/skills` 和项目级 `.claude/skills`，外加跨 agent 共用的 `.agents/skills`（全局与项目级，带 shared 标记）。点卡片查看/编辑 SKILL.md；一键在库间复制或迁移（迁移 = 复制后删源，全程可撤销），也可整目录删除（先打包备份）。对 `.agents` 共用库的删除/移出会给出显著警告。
+- **搜索**：顶栏搜索框按标题、路径、内容过滤 Board 卡片、matrix 行和 Skills 卡片（按 `/` 聚焦，Esc 清空）。
 - **Share matrix**：一行一条记忆，一列一个 agent。点空格子即可授权。已经在读这个文件的 agent 显示为实心勾，点不了。
 - **History**：每次写入都会先备份，可以单条撤销。
 - **Agents 勾选**：侧边栏的 Agents 区块按 agent 勾选，取消勾选即隐藏 Board 列和 matrix 列（保存在浏览器本地，新装的 agent 默认显示）。
@@ -71,6 +72,9 @@ agent-mem export -p . -o mem.json  # 项目记忆打包（含 share 关系）
 agent-mem import mem.json -p ~/code/shop-api   # 恢复到另一个目录/机器
 agent-mem ls                       # 发现到的项目
 agent-mem ls -p ~/code/shop-api    # 这个项目下的全部记忆
+agent-mem skills ls -p .           # 各库技能清单（shared = .agents 共用库）
+agent-mem skills migrate <name> --to claude-code [--move] [--overwrite] -p . --yes
+agent-mem skills rm <name> -p . --yes   # 整目录删除，先备份，可 undo
 agent-mem search <text> -p .       # 按标题/路径/内容搜记忆（含行号，--json 可选）
 agent-mem link codex:AGENTS.md --to claude -p . --yes
 agent-mem link ~/.claude/CLAUDE.md --to codex,pi --global --strategy copy --yes

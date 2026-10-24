@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { listShares, syncShares, type Hub } from '@agent-mem/core';
+import { listShares, sharedSkillRoots, syncShares, type Hub } from '@agent-mem/core';
 import chokidar, { type FSWatcher } from 'chokidar';
 import type { EventBus } from './events.js';
 
@@ -9,6 +9,7 @@ const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', 
  * What to watch, split by how deep it is safe to recurse:
  * - `deep`: agent config trees (~/.claude, ~/.codex, ...) hold session
  *   transcripts in nested directories, so recurse (bounded by session count).
+ *   Skill libraries recurse too - they only contain one folder per skill.
  * - `shallow`: project trees are huge (node_modules-scale), so watch only the
  *   exact directories that contain memory files, without recursing.
  */
@@ -25,13 +26,21 @@ export async function watchTargets(hub: Hub): Promise<WatchTargets> {
     for (const r of a.watchRoots?.() ?? []) deep.add(r);
   }
   const shallow = new Set<string>();
-  for (const p of await hub.projects()) {
+  const projects = await hub.projects();
+  for (const p of projects) {
     shallow.add(p.path);
     for (const m of await hub.memories(p.path)) {
       if (m.projectPath === p.path) shallow.add(path.dirname(m.filePath));
     }
   }
   for (const s of await listShares(hub.ctx)) shallow.add(path.dirname(s.sourcePath));
+  // Skill libraries are small, bounded trees (one folder per skill).
+  for (const p of [null, ...projects.map((x) => x.path)]) {
+    for (const r of sharedSkillRoots(hub.ctx, p)) deep.add(r.dir);
+    for (const a of hub.adapters) {
+      for (const r of a.skillRoots?.(p) ?? []) deep.add(r.dir);
+    }
+  }
   // A session whose cwd was $HOME or a trashed folder must not pull protected
   // directories (~/.Trash is unwatchable on macOS) into the watch list.
   const trash = path.join(home, '.Trash');

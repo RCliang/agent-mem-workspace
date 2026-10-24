@@ -1,7 +1,11 @@
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import type { Context } from './context.js';
 import { exists, readText, sha } from './fsutil.js';
+
+const run = promisify(execFile);
 
 export class ConflictError extends Error {
   constructor(
@@ -22,6 +26,8 @@ export interface BackupEntry {
   wasSymlinkTo: string | null;
   reason: string;
   createdAt: string;
+  /** `filePath` is a directory backed up as a tarball (skills). */
+  isDir?: boolean;
   undone?: boolean;
 }
 
@@ -73,17 +79,37 @@ export async function backupFile(ctx: Context, filePath: string, reason: string)
   return entry;
 }
 
+/** Snapshot a whole directory (skills) as a tarball so deletion or replacement can be undone. */
+export async function backupDir(ctx: Context, dirPath: string, reason: string): Promise<BackupEntry> {
+  const journal = await listBackups(ctx);
+  const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  const filesDir = path.join(ctx.dataDir, 'backups', 'files');
+  await fs.mkdir(filesDir, { recursive: true });
+  const backupPath = path.join(filesDir, `${id}-${path.basename(dirPath)}.tgz`);
+  await run('tar', ['-czf', backupPath, '-C', path.dirname(dirPath), path.basename(dirPath)]);
+  const entry: BackupEntry = { id, filePath: dirPath, backupPath, wasSymlinkTo: null, reason, createdAt: new Date().toISOString(), isDir: true };
+  journal.unshift(entry);
+  await writeJsonFile(journalPath(ctx), journal.slice(0, 500));
+  return entry;
+}
+
 export async function undoBackup(ctx: Context, id?: string): Promise<BackupEntry> {
   const journal = await listBackups(ctx);
   const entry = id ? journal.find((e) => e.id === id) : journal.find((e) => !e.undone);
   if (!entry) throw new Error(id ? `No backup with id ${id}` : 'Nothing to undo');
   if (entry.undone) throw new Error(`Backup ${entry.id} was already restored`);
-  await fs.rm(entry.filePath, { force: true });
-  if (entry.wasSymlinkTo) {
-    await fs.symlink(entry.wasSymlinkTo, entry.filePath);
-  } else if (entry.backupPath) {
+  if (entry.isDir) {
+    await fs.rm(entry.filePath, { recursive: true, force: true });
     await fs.mkdir(path.dirname(entry.filePath), { recursive: true });
-    await fs.copyFile(entry.backupPath, entry.filePath);
+    await run('tar', ['-xzf', entry.backupPath!, '-C', path.dirname(entry.filePath)]);
+  } else {
+    await fs.rm(entry.filePath, { force: true });
+    if (entry.wasSymlinkTo) {
+      await fs.symlink(entry.wasSymlinkTo, entry.filePath);
+    } else if (entry.backupPath) {
+      await fs.mkdir(path.dirname(entry.filePath), { recursive: true });
+      await fs.copyFile(entry.backupPath, entry.filePath);
+    }
   }
   entry.undone = true;
   await writeJsonFile(journalPath(ctx), journal);

@@ -5,16 +5,22 @@ import {
   ConflictError,
   currentHash,
   deleteFile,
+  findSkill,
   listBackups,
   listShares,
+  listSkills,
   llmLocalSummarizers,
   parseSessionFile,
   planShare,
+  planSkillDelete,
+  planSkillTransfer,
   planTransfer,
   planUnshare,
   readText,
   safeWrite,
+  sha,
   shareMatrix,
+  skillLibraries,
   syncShares,
   undoBackup,
   type Hub,
@@ -144,6 +150,34 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
   });
 
   api.get('/matrix', async (c) => c.json(await shareMatrix(hub, projectParam(c))));
+
+  api.get('/skills', async (c) => c.json({ libraries: await skillLibraries(hub), skills: await listSkills(hub, projectParam(c)) }));
+
+  api.get('/skill/:id', async (c) => {
+    const skill = await findSkill(hub, c.req.param('id'), projectParam(c));
+    const content = await readText(skill.skillMdPath);
+    return c.json({ ...skill, skillMd: { content: content ?? '', hash: sha(content ?? '') } });
+  });
+
+  api.put('/skill/:id', async (c) => {
+    const skill = await findSkill(hub, c.req.param('id'), projectParam(c));
+    const { content, expectedHash } = await c.req.json<{ content: string; expectedHash: string }>();
+    const res = await safeWrite(hub.ctx, skill.skillMdPath, content, { expectedHash, reason: `edit skill: ${skill.name}` });
+    bus.emit({ type: 'applied', files: [skill.skillMdPath] });
+    return c.json({ hash: res.hash, backupId: res.backup.id });
+  });
+
+  api.post('/skill/transfer/preview', async (c) => {
+    const body = await c.req.json<{ project: string | null; skillId: string; targetAgent: string; move?: boolean; overwrite?: boolean }>();
+    const skill = await findSkill(hub, body.skillId, body.project || null);
+    return c.json(await planSkillTransfer(hub, skill, body.targetAgent, { move: body.move, overwrite: body.overwrite }));
+  });
+
+  api.post('/skill/delete/preview', async (c) => {
+    const { project, skillId } = await c.req.json<{ project: string | null; skillId: string }>();
+    const skill = await findSkill(hub, skillId, project || null);
+    return c.json(await planSkillDelete(hub, skill));
+  });
 
   api.get('/shares', async (c) => c.json(await listShares(hub.ctx)));
 

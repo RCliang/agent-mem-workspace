@@ -27,6 +27,11 @@ export function claudeCodeAdapter(ctx: Context): AgentAdapter {
 
     watchRoots: () => [root],
 
+    skillRoots: (p: string | null) => [
+      { dir: path.join(root, 'skills'), scope: 'global' as const },
+      ...(p ? [{ dir: path.join(p, '.claude', 'skills'), scope: 'project' as const }] : []),
+    ],
+
     async listProjects() {
       const out: ProjectInfo[] = [];
       for (const name of await listDir(projectsDir)) {

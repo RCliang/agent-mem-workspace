@@ -1,6 +1,14 @@
-import type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy, TransferRender } from '@agent-mem/core';
+import type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy, SkillItem, TransferRender } from '@agent-mem/core';
 
-export type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy };
+export type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy, SkillItem };
+
+export interface SkillLibrary {
+  id: string;
+  displayName: string;
+  detected: boolean;
+}
+
+export type SkillDetail = SkillItem & { skillMd: { content: string; hash: string } };
 
 export interface Info {
   home: string;
@@ -48,6 +56,13 @@ export const api = {
   createMemory: (agent: string, project: string | null) => request<{ filePath: string }>('POST', '/api/memory', { agent, project }),
   session: (id: string, project: string | null) => request<ParsedSession>('GET', `/api/session/${id}${q(project)}`),
   matrix: (project: string | null) => request<MatrixRow[]>('GET', `/api/matrix${q(project)}`),
+  skills: (project: string | null) => request<{ libraries: SkillLibrary[]; skills: SkillItem[] }>('GET', `/api/skills${q(project)}`),
+  skill: (id: string, project: string | null) => request<SkillDetail>('GET', `/api/skill/${id}${q(project)}`),
+  saveSkill: (id: string, project: string | null, content: string, expectedHash: string) =>
+    request<{ hash: string; backupId: string }>('PUT', `/api/skill/${id}${q(project)}`, { content, expectedHash }),
+  previewSkillTransfer: (project: string | null, skillId: string, targetAgent: string, move: boolean) =>
+    request<Plan>('POST', '/api/skill/transfer/preview', { project, skillId, targetAgent, move }),
+  previewSkillDelete: (project: string | null, skillId: string) => request<Plan>('POST', '/api/skill/delete/preview', { project, skillId }),
   shares: () => request<Share[]>('GET', '/api/shares'),
   previewShare: (project: string | null, memoryId: string, targetAgent: string, strategy?: ShareStrategy) =>
     request<Plan>('POST', '/api/share/preview', { project, memoryId, targetAgent, strategy }),

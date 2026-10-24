@@ -31,6 +31,29 @@ describe('HTTP API', () => {
     expect(info.llmLocal).not.toContain('cursor');
   });
 
+  it('lists, previews and applies skill operations', async () => {
+    const { call, project, home } = await makeApp();
+    const q = `?project=${encodeURIComponent(project)}`;
+    const res = (await call('GET', `/api/skills${q}`)).json as { libraries: { id: string }[]; skills: { id: string; name: string; agent: string; shared: boolean }[] };
+    expect(res.libraries.map((l) => l.id)).toContain('shared');
+    expect(res.skills.some((s) => s.name === 'agent-reach' && s.agent === 'shared' && s.shared)).toBe(true);
+
+    const browse = res.skills.find((s) => s.name === 'browse' && s.agent === 'claude-code')!;
+    const detail = (await call('GET', `/api/skill/${browse.id}${q}`)).json as { skillMd: { content: string } };
+    expect(detail.skillMd.content).toMatch(/headless browser/);
+
+    const preview = await call('POST', '/api/skill/transfer/preview', { project, skillId: browse.id, targetAgent: 'pi', move: false });
+    expect(preview.status).toBe(200);
+    expect((preview.json as { dirOps: unknown[] }).dirOps).toHaveLength(1);
+    const applied = await call('POST', '/api/apply', { plan: preview.json });
+    expect(applied.status).toBe(200);
+    expect(fs.readFileSync(path.join(home, '.pi', 'agent', 'skills', 'browse', 'SKILL.md'), 'utf8')).toMatch(/headless browser/);
+
+    const del = await call('POST', '/api/skill/delete/preview', { project, skillId: browse.id });
+    expect(del.status).toBe(200);
+    expect((del.json as { notes: string[] }).notes.join(' ')).not.toMatch(/shared \.agents library/);
+  });
+
   it('lists agents, projects and memories', async () => {
     const { call, project } = await makeApp();
     expect((await call('GET', '/api/agents')).json.map((a: { id: string }) => a.id)).toEqual([

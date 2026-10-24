@@ -34,6 +34,8 @@ export function codexAdapter(ctx: Context): AgentAdapter {
 
     watchRoots: () => [root],
 
+    skillRoots: () => [{ dir: path.join(root, 'skills'), scope: 'global' }],
+
     async listProjects() {
       const byCwd = new Map<string, ProjectInfo>();
       for (const h of await allHeads()) {

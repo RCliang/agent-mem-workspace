@@ -33,6 +33,34 @@ export interface ProjectInfo {
 
 export type ShareStrategy = 'import' | 'symlink' | 'copy';
 
+/** A directory an agent populates with skill folders (`<name>/SKILL.md`). */
+export interface SkillRootLocation {
+  dir: string;
+  scope: 'global' | 'project';
+  /** Cross-agent shared library (`.agents/skills`): destructive changes affect every reader. */
+  shared?: boolean;
+}
+
+export interface SkillItem {
+  /** Stable id derived from owner + skill directory. */
+  id: string;
+  /** Owning adapter, or `shared` for the cross-agent `.agents` library. */
+  agent: AgentId;
+  name: string;
+  /** First paragraph of the SKILL.md frontmatter description. */
+  description: string;
+  dirPath: string;
+  skillMdPath: string;
+  scope: 'global' | 'project';
+  projectPath: string | null;
+  fileCount: number;
+  sizeBytes: number;
+  mtimeMs: number;
+  /** Other agents whose skill roots resolve to this exact directory. */
+  alsoReadBy: AgentId[];
+  shared: boolean;
+}
+
 export interface AgentCapabilities {
   /** Supports `@path` imports inside its instruction files. */
   imports: boolean;
@@ -57,6 +85,8 @@ export interface AgentAdapter {
   capabilities: AgentCapabilities;
   /** Non-interactive CLI invocation for local summarization; absent when the agent has none. */
   cli?: AgentCli;
+  /** Directories holding this agent's skills; absent when it has no skill system. */
+  skillRoots?(projectPath: string | null): SkillRootLocation[];
   detect(): Promise<boolean>;
   /** Directories whose changes can affect this agent's memories, for file watching. */
   watchRoots?(): string[];

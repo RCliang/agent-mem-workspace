@@ -1,6 +1,6 @@
-import { History as HistoryIcon, LayoutGrid, RefreshCw, Search, Table2, X } from 'lucide-react';
+import { History as HistoryIcon, LayoutGrid, Puzzle, RefreshCw, Search, Table2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, subscribe, type AgentSummary, type BackupEntry, type Info, type MatrixRow, type MemoryItem, type ProjectInfo, type ShareStrategy } from './api';
+import { api, subscribe, type AgentSummary, type BackupEntry, type Info, type MatrixRow, type MemoryItem, type ProjectInfo, type ShareStrategy, type SkillItem, type SkillLibrary } from './api';
 import { Board } from './components/Board';
 import { EditorDrawer } from './components/EditorDrawer';
 import { History } from './components/History';
@@ -8,13 +8,16 @@ import { Matrix } from './components/Matrix';
 import { PlanDialog, type PlanRequest } from './components/PlanDialog';
 import { SessionDrawer } from './components/SessionDrawer';
 import { Sidebar } from './components/Sidebar';
+import { SkillsBoard } from './components/SkillsBoard';
+import { SkillsDrawer } from './components/SkillsDrawer';
 import { useToast } from './components/Toasts';
 import { Button, cx, InfoContext } from './ui';
 
-type View = 'board' | 'matrix' | 'history';
+type View = 'board' | 'skills' | 'matrix' | 'history';
 
 const VIEWS: { id: View; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'board', label: 'Board', icon: LayoutGrid },
+  { id: 'skills', label: 'Skills', icon: Puzzle },
   { id: 'matrix', label: 'Share matrix', icon: Table2 },
   { id: 'history', label: 'History', icon: HistoryIcon },
 ];
@@ -41,6 +44,8 @@ export function App() {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
   const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [skillData, setSkillData] = useState<{ libraries: SkillLibrary[]; skills: SkillItem[] }>({ libraries: [], skills: [] });
+  const [openSkillId, setOpenSkillId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanRequest | null>(null);
   const [live, setLive] = useState(false);
@@ -124,10 +129,11 @@ export function App() {
   const reload = useCallback(async () => {
     if (project === undefined) return;
     try {
-      const [m, rows, b] = await Promise.all([api.memories(project), api.matrix(project), api.backups()]);
+      const [m, rows, b, sk] = await Promise.all([api.memories(project), api.matrix(project), api.backups(), api.skills(project)]);
       setMemories(m);
       setMatrix(rows);
       setBackups(b);
+      setSkillData(sk);
       setLoadError(null);
     } catch (e) {
       setLoadError((e as Error).message);
@@ -153,7 +159,27 @@ export function App() {
   }, []);
 
   const openItem = useMemo(() => memories.find((m) => m.id === openId) ?? null, [memories, openId]);
+  const openSkill = useMemo(() => skillData.skills.find((s) => s.id === openSkillId) ?? null, [skillData, openSkillId]);
   const current = projects.find((p) => p.path === project);
+
+  const visibleSkillLibraries = useMemo(
+    () => skillData.libraries.filter((l) => l.id === 'shared' || !hiddenAgents.includes(l.id)),
+    [skillData.libraries, hiddenAgents],
+  );
+  const visibleSkills = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return skillData.skills.filter((s) => `${s.name} ${s.description} ${s.dirPath}`.toLowerCase().includes(q));
+  }, [skillData.skills, query]);
+
+  const openSkillTransfer = useCallback(
+    (skill: SkillItem, target: string) =>
+      setPlan({ kind: 'skill', load: ({ move }) => api.previewSkillTransfer(project ?? null, skill.id, target, move) }),
+    [project],
+  );
+  const openSkillDelete = useCallback(
+    (skill: SkillItem) => setPlan({ kind: 'skill', load: () => api.previewSkillDelete(project ?? null, skill.id) }),
+    [project],
+  );
 
   const openTransfer = useCallback(
     (item: MemoryItem, targetAgent: string) =>
@@ -300,6 +326,9 @@ export function App() {
                 onChanged={() => void reload()}
               />
             )}
+            {project !== undefined && view === 'skills' && (
+              <SkillsBoard libraries={visibleSkillLibraries} skills={visibleSkills} onOpen={(s) => setOpenSkillId(s.id)} onTransfer={openSkillTransfer} onDelete={openSkillDelete} />
+            )}
             {project !== undefined && view === 'matrix' && (
               <Matrix
                 agents={visibleAgents}
@@ -345,6 +374,15 @@ export function App() {
               agents={visibleAgents}
               onClose={() => setOpenId(null)}
               onHandoff={openTransfer}
+            />
+          )}
+          {openSkill && (
+            <SkillsDrawer
+              key={openSkill.id}
+              skill={openSkill}
+              project={project ?? null}
+              onClose={() => setOpenSkillId(null)}
+              onSaved={() => void reload()}
             />
           )}
         </div>
