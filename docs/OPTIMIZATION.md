@@ -182,3 +182,12 @@ feat(round-3): custom agent management, backup pruning, memory bundles
 - 常驻 server 不热加载 `config.json`：`agents add` 后需重启 UI 进程；可加 config 文件监听。
 - bundle 目前只覆盖项目级记忆与项目内 share；全局记忆与跨项目 share 的迁移可作 V2（`version: 2` 字段已预留语义）。
 - Web 搜索为前端过滤，依赖已加载记忆内容；记忆规模显著变大后可下沉为 `/api/search`。
+
+## 附：真实环境首跑暴露并修复的 watcher 缺陷
+
+在真实 home 目录首次启动 `agent-mem ui` 时连续暴露两个问题，均已修复并带回归测试（测试数 57 → 58 → 59 前后）：
+
+1. **EPERM 崩溃**：曾在 `$HOME` 本身跑过的 agent 会话让 home 成了「项目」，watcher 递归监听整个 home，walk 到 macOS 受保护的 `~/.Trash` 时抛未处理的 `error` 事件直接崩溃。修复：chokidar `error` 事件统一兜底（去重日志、进程不退出）；`$HOME` 与 `~/.Trash` 及其子路径从监听列表剔除。
+2. **EMFILE 文件描述符耗尽**：原设计对每个项目目录按深度 5 递归监听，项目列表里出现 `~/Downloads`、`~/Documents/projects` 这类巨型目录即打爆 fd（错误刷屏、服务无响应）。修复：监听目标改为两级结构——agent 配置树（会话日志所在，`watchRoots()`，深度 5，规模受会话数约束）+ 项目仅监听「记忆文件所在的确切目录」（由 `hub.memories()` 推导，深度 0，不递归）；`ignored()` 同时跳过 socket/fifo（如 `~/.codex/ipc/ipc.sock`）。
+
+修复后真实环境验证：日志零 watch 错误，HTTP 正常，项目/agent 接口秒回。

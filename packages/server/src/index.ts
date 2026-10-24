@@ -9,7 +9,7 @@ import { startWatcher } from './watcher.js';
 
 export { createApp } from './app.js';
 export { EventBus, type HubEvent } from './events.js';
-export { startWatcher } from './watcher.js';
+export { startWatcher, watchTargets } from './watcher.js';
 
 export interface ServerOptions {
   hub: Hub;

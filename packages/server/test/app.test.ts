@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { MemoryItem, Plan } from '@agent-mem/core';
-import { createApp, EventBus, startWatcher, type HubEvent } from '@agent-mem/server';
+import { createApp, EventBus, startWatcher, watchTargets, type HubEvent } from '@agent-mem/server';
 import { describe, expect, it } from 'vitest';
 import { setup } from '../../core/test/helpers.js';
 
@@ -105,6 +105,33 @@ describe('HTTP API', () => {
 });
 
 describe('watcher', () => {
+  it('never watches $HOME itself or the macOS Trash, and keeps projects shallow', async () => {
+    const { hub, home, project } = await makeApp();
+    // A session whose cwd was $HOME, and one trashed project directory.
+    const enc = (p: string) => p.replace(/[^a-zA-Z0-9]/g, '-');
+    const session = (cwd: string) =>
+      `${JSON.stringify({ type: 'user', cwd, sessionId: 'x', message: { role: 'user', content: 'hi' } })}\n`;
+    fs.mkdirSync(path.join(home, '.claude', 'projects', enc(home)), { recursive: true });
+    fs.writeFileSync(path.join(home, '.claude', 'projects', enc(home), 'in-home.jsonl'), session(home));
+    const trashed = path.join(home, '.Trash', 'old-project');
+    fs.mkdirSync(path.join(home, '.claude', 'projects', enc(trashed)), { recursive: true });
+    fs.writeFileSync(path.join(home, '.claude', 'projects', enc(trashed), 'gone.jsonl'), session(trashed));
+
+    const targets = await watchTargets(hub);
+    // Agent config trees are watched deeply; the project only via its memory dirs.
+    expect(targets.deep).toContain(path.join(home, '.claude'));
+    expect(targets.shallow).toContain(project);
+    expect(targets.shallow).toContain(path.join(project, '.cursor', 'rules'));
+    for (const list of [targets.deep, targets.shallow]) {
+      expect(list).not.toContain(home);
+      expect(list.filter((r) => r === path.join(home, '.Trash') || r.startsWith(path.join(home, '.Trash') + path.sep))).toEqual([]);
+    }
+    // The watcher still starts with those projects discovered.
+    const bus2 = new EventBus();
+    const w = await startWatcher(hub, bus2, 50);
+    await w.close();
+  });
+
   it('watches the extra agents\' memory directories too', async () => {
     const { hub, bus, home } = await makeApp();
     const watcher = await startWatcher(hub, bus, 50);
