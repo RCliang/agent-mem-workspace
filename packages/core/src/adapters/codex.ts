@@ -28,6 +28,7 @@ export function codexAdapter(ctx: Context): AgentAdapter {
     id,
     displayName: 'Codex',
     capabilities: { imports: false },
+    cli: { command: 'codex', args: (p) => ['exec', '--skip-git-repo-check', p] },
 
     detect: () => isDir(root),
 

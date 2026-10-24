@@ -15,6 +15,7 @@ export function opencodeAdapter(ctx: Context): AgentAdapter {
     id,
     displayName: 'opencode',
     capabilities: { imports: false },
+    cli: { command: 'opencode', args: (p) => ['run', p] },
 
     detect: () => isDir(configRoot),
 

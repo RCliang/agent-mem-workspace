@@ -6,6 +6,7 @@ import {
   currentHash,
   listBackups,
   listShares,
+  llmLocalSummarizers,
   parseSessionFile,
   planShare,
   planTransfer,
@@ -73,7 +74,10 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
 
   const api = new Hono();
 
-  api.get('/info', (c) => c.json({ home: hub.ctx.home, dataDir: hub.ctx.dataDir, llm: !!hub.ctx.env.AGENT_MEM_LLM_API_KEY }));
+  api.get('/info', async (c) => {
+    const local = await llmLocalSummarizers(hub);
+    return c.json({ home: hub.ctx.home, dataDir: hub.ctx.dataDir, llm: local.length > 0 || !!hub.ctx.env.AGENT_MEM_LLM_API_KEY, llmLocal: local });
+  });
 
   api.get('/agents', async (c) => c.json(await hub.agents()));
 

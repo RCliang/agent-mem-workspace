@@ -5,7 +5,10 @@ export type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, P
 export interface Info {
   home: string;
   dataDir: string;
+  /** A summarizer is available: a local agent CLI or the configured API. */
   llm: boolean;
+  /** Agent ids installed here whose own CLI can refine summaries. */
+  llmLocal?: string[];
 }
 
 export class ApiError extends Error {

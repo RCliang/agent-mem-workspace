@@ -15,9 +15,9 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [llm, setLlm] = useState(false);
+  const { llm: llmConfigured, llmLocal } = useContext(InfoContext);
+  const [llm, setLlm] = useState(() => llmConfigured);
   const [active, setActive] = useState(0);
-  const { llm: llmConfigured } = useContext(InfoContext);
   const tildify = useTildify();
   const toast = useToast();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -148,7 +148,14 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
 
       <footer className="flex items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
         {request.llmToggle && (
-          <label className={cx('flex items-center gap-2 text-[13px]', !llmConfigured && 'opacity-60')} title={llmConfigured ? '' : 'Set AGENT_MEM_LLM_API_KEY to enable'}>
+          <label
+            className={cx('flex items-center gap-2 text-[13px]', !llmConfigured && 'opacity-60')}
+            title={
+              llmConfigured
+                ? `Refined by the target agent's own CLI${(llmLocal ?? []).length ? ` (${(llmLocal ?? []).join(', ')})` : ''}, then any other local agent, then the configured API. Uncheck for an instant rule-based draft.`
+                : 'Install an agent CLI (claude, codex, pi, gemini, opencode) or set AGENT_MEM_LLM_API_KEY to enable'
+            }
+          >
             <input type="checkbox" className="accent-[var(--color-signal)]" checked={llm} disabled={!llmConfigured} onChange={(e) => setLlm(e.target.checked)} />
             <Sparkles className="size-3.5 text-signal" />
             Summarize with LLM

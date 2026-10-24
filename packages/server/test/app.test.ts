@@ -21,6 +21,15 @@ async function makeApp() {
 }
 
 describe('HTTP API', () => {
+  it('reports the available handoff summarizers', async () => {
+    const { call } = await makeApp();
+    const info = (await call('GET', '/api/info')).json as { llm: boolean; llmLocal: string[] };
+    // The sandbox installs every agent; all but Cursor ship a one-shot CLI.
+    expect(info.llm).toBe(true);
+    expect(info.llmLocal).toContain('claude-code');
+    expect(info.llmLocal).not.toContain('cursor');
+  });
+
   it('lists agents, projects and memories', async () => {
     const { call, project } = await makeApp();
     expect((await call('GET', '/api/agents')).json.map((a: { id: string }) => a.id)).toEqual(['claude-code', 'codex', 'pi', 'gemini', 'cursor', 'opencode']);

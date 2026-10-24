@@ -19,7 +19,7 @@ Overview: a local-first tool that shows the memory files of the coding agents in
 
 同一个文件被多个 agent 读取时（项目里的 `AGENTS.md` 同时属于 Codex 和 Pi），界面只把它算作一份，并标出「also read by」。
 
-工作记忆不一样。会话是各家自己的 JSONL，没法塞进另一个 agent 正在进行的对话里。拖过去时，agent-mem 会把会话整理成一份 `handoff.md`（目标、后续要求、改过的文件、跑过的命令、最后状态），写到目标 agent 下一次启动会读到的位置，并在写入前打码疑似密钥。配置了 `AGENT_MEM_LLM_API_KEY` 时，可以用兼容 OpenAI 的接口把这份摘要再润色一次。
+工作记忆不一样。会话是各家自己的 JSONL，没法塞进另一个 agent 正在进行的对话里。拖过去时，agent-mem 会把会话整理成一份 `handoff.md`（目标、后续要求、改过的文件、跑过的命令、最后状态），写到目标 agent 下一次启动会读到的位置，并在写入前打码疑似密钥。勾选「Summarize with LLM」可以再润色这份摘要：**默认优先用本机已装 agent 自己的 CLI**（目标 agent → 来源 agent → 其他已装 agent，如 `claude -p`、`pi -p`、`codex exec`，无需任何 API Key），其次才用配置了 `AGENT_MEM_LLM_API_KEY` 的 OpenAI 兼容接口；全部不可用时回退到规则摘要。`AGENT_MEM_LLM_MODE=api|local` 可以强制只走某一条通道。
 
 ## 界面
 
@@ -106,7 +106,7 @@ DeepSeek harness 这类「读某个 Markdown」的工具不用改代码。在 `~
 
 `homeDir` 存在才算已安装。更复杂的读取逻辑可以用 `plugins` 指向一个 ESM 模块，默认导出 `(ctx) => AgentAdapter`。
 
-模型摘要使用环境变量，不写进参数，避免留在 shell 历史里：
+模型摘要默认走本机 agent CLI；想用托管接口时通过环境变量配置，不写进参数，避免留在 shell 历史里：
 
 ```bash
 export AGENT_MEM_LLM_API_KEY=...

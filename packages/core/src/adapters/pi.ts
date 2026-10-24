@@ -28,6 +28,7 @@ export function piAdapter(ctx: Context): AgentAdapter {
     id,
     displayName: 'Pi',
     capabilities: { imports: false },
+    cli: { command: 'pi', args: (p) => ['-p', p, '--mode', 'text'] },
 
     detect: () => isDir(root),
 

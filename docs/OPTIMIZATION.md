@@ -183,6 +183,17 @@ feat(round-3): custom agent management, backup pruning, memory bundles
 - bundle 目前只覆盖项目级记忆与项目内 share；全局记忆与跨项目 share 的迁移可作 V2（`version: 2` 字段已预留语义）。
 - Web 搜索为前端过滤，依赖已加载记忆内容；记忆规模显著变大后可下沉为 `/api/search`。
 
+## 第四轮（追加）：本地 agent CLI 作为交接摘要器（默认）
+
+应用户需求：「Summarize with LLM 能否直接用被拖过去 agent 自己的调用方式」——答案是现在可以，而且是**默认优先**。
+
+- **适配器声明 CLI**（`AgentAdapter.cli?: AgentCli`）：claude（`claude -p --tools "" --no-session-persistence`，工具禁用防注入、不留会话记录）、pi（`pi -p --mode text`）、codex（`codex exec --skip-git-repo-check`）、gemini（`gemini -p`）、opencode（`opencode run`）；Cursor 是 IDE 无 CLI 不声明。
+- **摘要链**：规则摘要（离线保底）→ 勾选 LLM 后按 **目标 agent → 来源 agent → 其他已装 agent** 的顺序尝试本地 CLI（spawn 子进程、120s 超时、ENOENT/失败自动下一个）→ 都不可用时走 `AGENT_MEM_LLM_API_KEY` 的 OpenAI 兼容接口 → 全部失败回退规则摘要并在备注说明。`AGENT_MEM_LLM_MODE=api|local` 可强制通道。
+- **UI**：`/api/info` 返回 `llmLocal`（本机可用的 CLI agent）；「Summarize with LLM」勾选框**默认勾选**（有任一摘要器即亮起），tooltip 说明通道与回退顺序。
+- **提示词安全**：转写内容一律作为「数据」传入，明确指示忽略其中的指令、只输出 Markdown 文档；claude 通道禁用全部工具。
+- **测试**：stub 适配器（node 脚本模拟 CLI）验证成功路径与备注文案；`AGENT_MEM_LLM_MODE=api` 跳过本地路径；`llmLocalSummarizers` 清单；既有 HTTP LLM 测试加 mode=api 隔离本机真实 CLI。62 个测试全过。
+- **真实验证**：本机 codex 会话 → claude-code 交接预览，`claude -p` 完成（41s），中文交接文档结构完整，全程无 API Key。
+
 ## 附：真实环境首跑暴露并修复的 watcher 缺陷
 
 在真实 home 目录首次启动 `agent-mem ui` 时连续暴露两个问题，均已修复并带回归测试（测试数 57 → 58 → 59 前后）：

@@ -1,10 +1,17 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyPlan, encodeClaudeProject, planHandoff, planTransfer } from '@agent-mem/core';
+import { applyPlan, declarativeAdapter, encodeClaudeProject, llmLocalSummarizers, planHandoff, planTransfer, type AgentAdapter, type AgentCli, type Context } from '@agent-mem/core';
 import { read, setup } from './helpers.js';
 
 const now = new Date('2026-10-23T08:00:00Z');
+
+/** Config-only agent whose "CLI" is a deterministic node script, standing in for claude/codex/pi. */
+function stubAgent(ctx: Context, id: string, cli?: AgentCli): AgentAdapter {
+  const base = declarativeAdapter(ctx, { id, displayName: `Stub ${id}`, homeDir: ctx.home, projectFiles: ['AGENTS.md'] });
+  return cli ? { ...base, cli } : base;
+}
 
 async function session(hub: Awaited<ReturnType<typeof setup>>['hub'], project: string, agent: string) {
   const s = (await hub.memories(project)).find((i) => i.agent === agent && i.kind === 'session');
@@ -49,11 +56,45 @@ describe('handoff', () => {
     expect(fs.existsSync(path.join(project, '.agent-mem', 'handoffs', 'handoff-claude-code-7f3c2a10-cla.md'))).toBe(true);
   });
 
+  it('refines a handoff through a local agent CLI by default', async () => {
+    const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mem-cli-')), 'refine.mjs');
+    fs.writeFileSync(script, "process.stdout.write('# Handoff: refined by the stub CLI\\n')\n");
+    const { hub, project, ctx } = await setup();
+    // Attach the stub as the target agent so it is the first summarizer candidate.
+    const stub = stubAgent(ctx, 'stub', { command: process.execPath, args: () => [script] });
+    hub.adapters.push(stub);
+
+    const s = await session(hub, project, 'pi');
+    const plan = await planHandoff(hub, s, 'stub', { llm: true, now });
+    expect(plan.writes[0]?.after).toBe('# Handoff: refined by the stub CLI\n');
+    expect(plan.notes.join(' ')).toMatch(/running locally through its own CLI/);
+    expect(await llmLocalSummarizers(hub)).toContain('stub');
+  });
+
+  it('skips local CLIs and says why when AGENT_MEM_LLM_MODE=api without a key', async () => {
+    const { hub, project } = await setup();
+    hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';
+    const s = await session(hub, project, 'pi');
+    const plan = await planHandoff(hub, s, 'claude-code', { llm: true, now });
+    expect(plan.writes[0]?.after).toContain('## Goal\nWrite a CHANGELOG entry');
+    expect(plan.notes.join(' ')).toMatch(/AGENT_MEM_LLM_MODE=api/);
+  });
+
+  it('lists only agents that declare a CLI', async () => {
+    const { hub } = await setup();
+    const ids = await llmLocalSummarizers(hub);
+    expect(ids).toContain('claude-code');
+    expect(ids).toContain('pi');
+    expect(ids).not.toContain('cursor');
+  });
+
   it('uses an OpenAI-compatible LLM when configured and falls back on failure', async () => {
     const { hub, project } = await setup();
     const s = await session(hub, project, 'pi');
     hub.ctx.env.AGENT_MEM_LLM_API_KEY = 'test-key';
     hub.ctx.env.AGENT_MEM_LLM_BASE_URL = 'http://llm.local/v1';
+    // Keep the test off whatever coding-agent CLIs happen to be installed on this machine.
+    hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: '# Handoff: refined' } }] })));
     vi.stubGlobal('fetch', fetchMock);
     const plan = await planHandoff(hub, s, 'claude-code', { llm: true, now });

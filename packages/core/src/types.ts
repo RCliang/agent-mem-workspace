@@ -42,10 +42,20 @@ export interface WriteTarget {
   scope: MemoryScope;
 }
 
+/** One-shot headless invocation of a coding agent's own CLI, used for local LLM tasks. */
+export interface AgentCli {
+  /** Binary expected on PATH, e.g. `claude`. */
+  command: string;
+  /** Arguments for a single prompt that must print its answer to stdout and exit. */
+  args: (prompt: string) => string[];
+}
+
 export interface AgentAdapter {
   id: AgentId;
   displayName: string;
   capabilities: AgentCapabilities;
+  /** Non-interactive CLI invocation for local summarization; absent when the agent has none. */
+  cli?: AgentCli;
   detect(): Promise<boolean>;
   /** Directories whose changes can affect this agent's memories, for file watching. */
   watchRoots?(): string[];

@@ -13,6 +13,7 @@ export function geminiAdapter(ctx: Context): AgentAdapter {
     id,
     displayName: 'Gemini CLI',
     capabilities: { imports: true },
+    cli: { command: 'gemini', args: (p) => ['-p', p] },
 
     detect: () => isDir(root),
 

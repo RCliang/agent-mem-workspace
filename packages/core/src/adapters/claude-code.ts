@@ -20,6 +20,8 @@ export function claudeCodeAdapter(ctx: Context): AgentAdapter {
     id,
     displayName: 'Claude Code',
     capabilities: { imports: true },
+    // --tools "" keeps the summarizer read-only; --no-session-persistence keeps the user's history clean.
+    cli: { command: 'claude', args: (p) => ['-p', p, '--output-format', 'text', '--tools', '', '--no-session-persistence'] },
 
     detect: () => isDir(root),
 
