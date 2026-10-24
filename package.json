@@ -1,0 +1,27 @@
+{
+  "name": "agent-mem-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter ./packages/core --filter ./packages/server --filter ./packages/cli run build && pnpm --filter @agent-mem/web run build",
+    "typecheck": "pnpm --filter @agent-mem/core --filter @agent-mem/server run build && pnpm -r run typecheck",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "dev:web": "pnpm --filter @agent-mem/web run dev",
+    "ui": "node packages/cli/dist/index.js ui"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^3.2.0"
+  }
+}
