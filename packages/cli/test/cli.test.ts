@@ -88,11 +88,22 @@ describe('agent-mem cli', () => {
 
   it('hands a codex session off to claude code', async () => {
     const { project, home } = await withHome();
+    const prevMode = process.env.AGENT_MEM_LLM_MODE;
+    const prevKey = process.env.AGENT_MEM_LLM_API_KEY;
+    process.env.AGENT_MEM_LLM_MODE = 'api';
+    delete process.env.AGENT_MEM_LLM_API_KEY;
     const cap = capture();
-    expect(await run(['handoff', '--from', 'codex', '--to', 'claude', '-p', project, '--yes'], cap.io)).toBe(0);
-    const doc = path.join(home, '.claude', 'projects', encodeClaudeProject(project), 'memory', 'handoff-codex-0199c1d2-cod.md');
-    expect(read(doc)).toContain('# Handoff: shop-api (from Codex)');
-    expect(read(path.join(path.dirname(doc), 'MEMORY.md'))).toContain('handoff-codex-0199c1d2-cod.md');
+    try {
+      expect(await run(['handoff', '--from', 'codex', '--to', 'claude', '-p', project, '--yes'], cap.io)).toBe(0);
+      const doc = path.join(home, '.claude', 'projects', encodeClaudeProject(project), 'memory', 'handoff-codex-0199c1d2-cod.md');
+      expect(read(doc)).toContain('# Handoff: shop-api (from Codex)');
+      expect(read(path.join(path.dirname(doc), 'MEMORY.md'))).toContain('handoff-codex-0199c1d2-cod.md');
+    } finally {
+      if (prevMode === undefined) delete process.env.AGENT_MEM_LLM_MODE;
+      else process.env.AGENT_MEM_LLM_MODE = prevMode;
+      if (prevKey === undefined) delete process.env.AGENT_MEM_LLM_API_KEY;
+      else process.env.AGENT_MEM_LLM_API_KEY = prevKey;
+    }
   });
 
   it('adds a project folder', async () => {

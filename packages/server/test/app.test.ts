@@ -62,10 +62,17 @@ describe('HTTP API', () => {
   });
 
   it('previews and applies a drag-and-drop handoff', async () => {
-    const { call, project } = await makeApp();
+    const { call, project, hub } = await makeApp();
+    hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';
     const mems: MemoryItem[] = (await call('GET', `/api/memories?project=${encodeURIComponent(project)}`)).json;
     const codexSession = mems.find((m) => m.agent === 'codex' && m.kind === 'session')!;
-    const preview = await call('POST', '/api/transfer/preview', { project, memoryId: codexSession.id, targetAgent: 'claude-code' });
+    const missing = await call('POST', '/api/transfer/preview', { project, memoryId: codexSession.id, targetAgent: 'claude-code' });
+    expect(missing.status).toBe(400);
+    const verbatim = await call('POST', '/api/transfer/preview', { project, memoryId: codexSession.id, targetAgent: 'claude-code', render: 'verbatim' });
+    expect(verbatim.status).toBe(200);
+    expect(verbatim.json.writes[0].after).toContain('Migrate the settings page from class components to hooks and keep the existing tests green.');
+    expect(verbatim.json.writes[0].after).not.toContain('## Next steps');
+    const preview = await call('POST', '/api/transfer/preview', { project, memoryId: codexSession.id, targetAgent: 'claude-code', render: 'summary' });
     expect(preview.status).toBe(200);
     const plan: Plan = preview.json;
     expect(plan.kind).toBe('handoff');

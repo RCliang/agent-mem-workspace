@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { applyPlan, ConflictError, listShares, planShare, planTransfer, planUnshare, shareMatrix, syncShares } from '@agent-mem/core';
 import { read, setup } from './helpers.js';
 
@@ -93,16 +93,41 @@ describe('sharing', () => {
 });
 
 describe('transfer', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it('copies an instruction file once and refreshes the same block on repeat', async () => {
     const { hub, project } = await setup();
+    hub.ctx.env.AGENT_MEM_LLM_API_KEY = 'test-key';
+    hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';
+    const fetchMock = vi.fn(async () => new Response('# rewritten by the summarizer\n'));
+    vi.stubGlobal('fetch', fetchMock);
     const mem = await memory(hub, project, 'claude-code', path.join(hub.ctx.home, '.claude', 'CLAUDE.md'));
-    const plan = await planTransfer(hub, mem, 'codex');
+    const plan = await planTransfer(hub, mem, 'codex', { render: 'verbatim' });
     expect(plan.writes[0]?.filePath).toBe(path.join(hub.ctx.home, '.codex', 'AGENTS.md'));
     await applyPlan(hub.ctx, plan);
-    await applyPlan(hub.ctx, await planTransfer(hub, mem, 'codex'));
+    await applyPlan(hub.ctx, await planTransfer(hub, mem, 'codex', { render: 'verbatim' }));
     const out = read(path.join(hub.ctx.home, '.codex', 'AGENTS.md'));
     expect(out).toContain('Prefer pnpm over npm.');
     expect(out.match(/agent-mem:begin xfer-/g)).toHaveLength(1);
+    expect(out).not.toContain('rewritten by the summarizer');
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(await listShares(hub.ctx)).toHaveLength(0);
+  });
+
+  it('summarizes another memory as an outline when no model is configured', async () => {
+    const { hub, project } = await setup();
+    hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';
+    const fetchMock = vi.fn(async () => new Response('# rewritten\n'));
+    vi.stubGlobal('fetch', fetchMock);
+    const mem = await memory(hub, project, 'claude-code', path.join(project, 'CLAUDE.md'));
+    const plan = await planTransfer(hub, mem, 'codex', { render: 'summary' });
+    const after = plan.writes[0]?.after ?? '';
+    expect(after).toContain('# shop-api');
+    expect(after).toContain('## Commands');
+    expect(after).toContain('pnpm test');
+    expect(after).not.toContain('Validate request bodies with zod');
+    expect(after.match(/agent-mem:begin xfer-/g)).toHaveLength(1);
+    expect(plan.notes.join(' ')).toMatch(/No model ran/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -139,9 +139,10 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
   });
 
   api.post('/transfer/preview', async (c) => {
-    const body = await c.req.json<{ project: string | null; memoryId: string; targetAgent: string; llm?: boolean }>();
+    const body = await c.req.json<{ project: string | null; memoryId: string; targetAgent: string; render?: unknown }>();
+    if (body.render !== 'verbatim' && body.render !== 'summary') throw new Error('render must be "verbatim" or "summary"');
     const item = await hub.findMemory(body.memoryId, body.project || null);
-    return c.json(await planTransfer(hub, item, body.targetAgent, { llm: body.llm }));
+    return c.json(await planTransfer(hub, item, body.targetAgent, { render: body.render }));
   });
 
   api.post('/apply', async (c) => {

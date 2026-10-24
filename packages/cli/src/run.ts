@@ -229,9 +229,8 @@ export function buildProgram(io: Io): Command {
       .requiredOption('--from <agent>', 'agent whose session to summarize')
       .requiredOption('--to <agents>', 'comma-separated target agents')
       .option('--session <ref>', 'session id or file instead of the most recent one')
-      .option('--llm', 'refine the summary with the configured LLM')
       .option('-y, --yes', 'apply without asking'),
-  ).action(async (opts: LocateOpts & { from: string; to: string; session?: string; llm?: boolean; yes?: boolean }) => {
+  ).action(async (opts: LocateOpts & { from: string; to: string; session?: string; yes?: boolean }) => {
     const hub = await openHub();
     const project = await locate(hub, opts, 'cwd');
     if (!project) throw new Error('Handoffs belong to a project. Pass --project.');
@@ -241,7 +240,7 @@ export function buildProgram(io: Io): Command {
     const session = opts.session ? await hub.resolveMemory(opts.session, project) : sessions[0]!;
     if (session.kind !== 'session') throw new Error(`${opts.session} is not a session`);
     const plans = [];
-    for (const agent of splitAgents(opts.to)) plans.push(await planTransfer(hub, session, agent, { llm: opts.llm }));
+    for (const agent of splitAgents(opts.to)) plans.push(await planTransfer(hub, session, agent, { render: 'summary' }));
     await commit(io, hub, plans, opts.yes);
   });
 
@@ -251,14 +250,14 @@ export function buildProgram(io: Io): Command {
       .description('Copy a memory onto another agent (sessions become a handoff)')
       .argument('<memory>', 'memory id, file path, or agent:path')
       .requiredOption('--to <agents>', 'comma-separated target agents')
-      .option('--llm', 'use the configured LLM when handing off a session')
+      .option('--summarize', 'preview a summary instead of the original text')
       .option('-y, --yes', 'apply without asking'),
-  ).action(async (ref: string, opts: LocateOpts & { to: string; llm?: boolean; yes?: boolean }) => {
+  ).action(async (ref: string, opts: LocateOpts & { to: string; summarize?: boolean; yes?: boolean }) => {
     const hub = await openHub();
     const project = await locate(hub, opts, 'cwd');
     const item = await hub.resolveMemory(ref, project);
     const plans = [];
-    for (const agent of splitAgents(opts.to)) plans.push(await planTransfer(hub, item, agent, { llm: opts.llm }));
+    for (const agent of splitAgents(opts.to)) plans.push(await planTransfer(hub, item, agent, { render: opts.summarize ? 'summary' : 'verbatim' }));
     await commit(io, hub, plans, opts.yes);
   });
 
