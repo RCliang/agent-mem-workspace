@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ComponentType, ReactNode } from 'react';
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Info } from './api';
 
 export const AGENT_COLORS: Record<string, string> = {
@@ -67,6 +67,44 @@ export function EmptyState({ icon: Icon, title, hint, action }: { icon?: Compone
       {action}
     </div>
   );
+}
+
+/**
+ * Column order shared by the Board and Skills views, persisted in localStorage.
+ * Unknown ids (newly installed agents) keep their default position at the end.
+ */
+export function useColumnOrder(storageKey: string, ids: string[]): [{ order: string[]; indexOf: (id: string) => number }, (activeId: string, overId: string) => void] {
+  const [stored, setStored] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+      return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(stored));
+  }, [storageKey, stored]);
+
+  const order = useMemo(() => {
+    const rank = new Map(stored.map((id, i) => [id, i]));
+    return [...ids].sort((a, b) => (rank.get(a) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b) ?? Number.MAX_SAFE_INTEGER) || ids.indexOf(a) - ids.indexOf(b));
+  }, [stored, ids]);
+
+  const move = (activeId: string, overId: string) => {
+    if (activeId === overId) return;
+    const merged = [...new Set([...order, ...stored])];
+    const from = merged.indexOf(activeId);
+    const to = merged.indexOf(overId);
+    if (from === -1 || to === -1) return;
+    merged.splice(to, 0, ...merged.splice(from, 1));
+    setStored(merged);
+  };
+
+  const indexOf = (id: string) => order.indexOf(id);
+  return [{ order, indexOf }, move];
 }
 
 export function AgentDot({ agent, size = 8 }: { agent: string; size?: number }) {

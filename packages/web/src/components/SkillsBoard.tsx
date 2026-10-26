@@ -14,9 +14,9 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { ArrowRightLeft, Blocks, Search, Trash2, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SkillItem, SkillLibrary } from '../api';
-import { AgentDot, AgentIcon, cx, EmptyState, formatSize, relativeTime, Tag } from '../ui';
+import { AgentDot, AgentIcon, cx, EmptyState, formatSize, relativeTime, Tag, useColumnOrder } from '../ui';
 
 function SkillCardBody({ skill, nameOf, dragging }: { skill: SkillItem; nameOf: (id: string) => string; dragging?: boolean }) {
   return (
@@ -152,6 +152,7 @@ function SkillColumn({
   items,
   libraries,
   dragged,
+  movingColumn,
   emptyHint,
   onClearSearch,
   onOpen,
@@ -162,6 +163,8 @@ function SkillColumn({
   items: SkillItem[];
   libraries: SkillLibrary[];
   dragged: SkillItem | null;
+  /** Library id of a column being dragged to a new position, if any. */
+  movingColumn: string | null;
   emptyHint?: string;
   onClearSearch?: () => void;
   onOpen: (s: SkillItem) => void;
@@ -170,6 +173,11 @@ function SkillColumn({
 }) {
   const disabled = !!dragged && (dragged.agent === lib.id || dragged.alsoReadBy.includes(lib.id));
   const { setNodeRef, isOver } = useDroppable({ id: lib.id, disabled });
+  const { attributes: columnAttrs, listeners: columnListeners, setNodeRef: setHeaderRef } = useDraggable({
+    id: `col:${lib.id}`,
+    data: { kind: 'column', columnId: lib.id },
+  });
+  const columnDropTarget = movingColumn && movingColumn !== lib.id && isOver;
   return (
     <section
       ref={setNodeRef}
@@ -177,11 +185,24 @@ function SkillColumn({
       aria-label={lib.displayName}
       className={cx(
         'relative flex min-w-[300px] flex-1 basis-0 flex-col rounded-xl border bg-ink-900 transition-[border-color,background-color] duration-200',
-        isOver && !disabled ? 'border-signal bg-ink-850' : 'border-ink-700',
+        movingColumn
+          ? columnDropTarget
+            ? 'border-signal bg-ink-850 outline-2 outline-dashed outline-signal/50'
+            : 'border-ink-700'
+          : isOver && !disabled
+            ? 'border-signal bg-ink-850'
+            : 'border-ink-700',
+        movingColumn === lib.id && 'opacity-70',
         dragged && disabled && 'opacity-55',
       )}
     >
-      <header className="flex items-center gap-2.5 border-b border-ink-700 px-4 py-3">
+      <header
+        ref={setHeaderRef}
+        {...columnListeners}
+        {...columnAttrs}
+        title="Drag the header to reorder the columns"
+        className="flex cursor-grab items-center gap-2.5 border-b border-ink-700 px-4 py-3 select-none active:cursor-grabbing"
+      >
         {lib.id === 'shared' ? <Blocks className="size-[18px] text-paper-mute" aria-hidden /> : <AgentIcon agent={lib.id} size={18} />}
         <h2 className="text-[14px] font-semibold">{lib.displayName}</h2>
         {lib.id === 'shared' && (
@@ -248,6 +269,10 @@ export function SkillsBoard({
 }) {
   const [filter, setFilter] = useState('');
   const [dragged, setDragged] = useState<SkillItem | null>(null);
+  const [movingColumn, setMovingColumn] = useState<string | null>(null);
+  // Library order is shared with the memory Board and persisted in localStorage.
+  const [{ indexOf }, moveColumn] = useColumnOrder('agent-mem:column-order', libraries.map((l) => l.id));
+  const orderedLibraries = useMemo(() => [...libraries].sort((x, y) => indexOf(x.id) - indexOf(y.id)), [libraries, indexOf]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   const collision: CollisionDetection = (args) => {
     const hits = pointerWithin(args);
@@ -265,9 +290,23 @@ export function SkillsBoard({
     ? `No matches${needle ? ` for “${filter.trim()}”` : ''}${query?.trim() && needle ? ' (or the header search)' : ''}.`
     : undefined;
 
-  const onDragStart = (e: DragStartEvent) => setDragged((e.active.data.current as { skill: SkillItem } | undefined)?.skill ?? null);
+  const onDragStart = (e: DragStartEvent) => {
+    const data = e.active.data.current as { kind?: string; columnId?: string; skill?: SkillItem } | undefined;
+    if (data?.kind === 'column') {
+      setMovingColumn(data.columnId ?? null);
+      return;
+    }
+    setDragged(data?.skill ?? null);
+  };
   const onDragEnd = (e: DragEndEvent) => {
-    const skill = (e.active.data.current as { skill: SkillItem } | undefined)?.skill;
+    const data = e.active.data.current as { kind?: string; columnId?: string; skill?: SkillItem } | undefined;
+    if (data?.kind === 'column') {
+      setMovingColumn(null);
+      const over = e.over?.id as string | undefined;
+      if (data.columnId && over && over !== data.columnId) moveColumn(data.columnId, over);
+      return;
+    }
+    const skill = data?.skill;
     setDragged(null);
     const target = e.over?.id as string | undefined;
     if (skill && target && target !== skill.agent && !skill.alsoReadBy.includes(target)) onTransfer(skill, target);
@@ -304,13 +343,14 @@ export function SkillsBoard({
 
       <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragged(null)}>
         <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-5">
-          {libraries.map((lib) => (
+          {orderedLibraries.map((lib) => (
             <SkillColumn
               key={lib.id}
               lib={lib}
               libraries={libraries}
               items={visible.filter((s) => s.agent === lib.id || s.alsoReadBy.includes(lib.id))}
               dragged={dragged}
+              movingColumn={movingColumn}
               emptyHint={emptyHint}
               onClearSearch={onClearSearch ?? (() => setFilter(''))}
               onOpen={onOpen}

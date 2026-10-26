@@ -14,9 +14,9 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { ArrowRightLeft, BrainCircuit, FilePlus2, FileText, Link2, MessagesSquare } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type AgentSummary, type MemoryItem } from '../api';
-import { AgentDot, AgentIcon, cx, formatSize, relativeTime, Tag, useTildify } from '../ui';
+import { AgentDot, AgentIcon, cx, formatSize, relativeTime, Tag, useColumnOrder, useTildify } from '../ui';
 import { ArmedAction } from './ArmedAction';
 import { useToast } from './Toasts';
 
@@ -225,6 +225,7 @@ function Column({
   project,
   emptyHint,
   onClearSearch,
+  movingColumn,
   onOpen,
   onSend,
   onCreate,
@@ -239,6 +240,8 @@ function Column({
   /** Shown instead of the default text when a search emptied the column. */
   emptyHint?: string;
   onClearSearch?: () => void;
+  /** Agent id of a column being dragged to a new position, if any. */
+  movingColumn: string | null;
   onOpen: (m: MemoryItem) => void;
   onSend: (item: MemoryItem, agent: string) => void;
   onCreate: (agent: string) => void;
@@ -248,9 +251,14 @@ function Column({
   const hint = hintFor(dragged, agent.id);
   const disabled = hint?.kind === 'source' || hint?.kind === 'native';
   const { setNodeRef, isOver } = useDroppable({ id: agent.id, disabled });
+  const { attributes: columnAttrs, listeners: columnListeners, setNodeRef: setHeaderRef } = useDraggable({
+    id: `col:${agent.id}`,
+    data: { kind: 'column', columnId: agent.id },
+  });
   const scope = project ? 'project' : 'global';
   const hasWriteTarget = items.some((i) => i.isWriteTarget && i.scope === scope && i.agent === agent.id);
   const groups = KIND_ORDER.map((k) => [k, items.filter((i) => i.kind === k)] as const).filter(([, xs]) => xs.length > 0);
+  const columnDropTarget = movingColumn && movingColumn !== agent.id && isOver;
 
   return (
     <section
@@ -259,12 +267,28 @@ function Column({
       aria-label={agent.displayName}
       className={cx(
         'relative flex min-w-[300px] flex-1 basis-0 flex-col rounded-xl border bg-ink-900 transition-[border-color,background-color] duration-200',
-        isOver && !disabled ? 'border-signal bg-ink-850' : 'border-ink-700',
+        movingColumn
+          ? columnDropTarget
+            ? 'border-signal bg-ink-850 outline-2 outline-dashed outline-signal/50'
+            : 'border-ink-700'
+          : isOver && !disabled
+            ? 'border-signal bg-ink-850'
+            : 'border-ink-700',
+        movingColumn === agent.id && 'opacity-70',
         dragged && disabled && 'opacity-55',
       )}
     >
-      <header data-agent-header={agent.id} className="flex items-center gap-2.5 border-b border-ink-700 px-4 py-3">
-        <HideHandle agentId={agent.id} />
+      <header
+        ref={setHeaderRef}
+        data-agent-header={agent.id}
+        {...columnListeners}
+        {...columnAttrs}
+        title="Drag the header to reorder the columns"
+        className="flex cursor-grab items-center gap-2.5 border-b border-ink-700 px-4 py-3 select-none active:cursor-grabbing"
+      >
+        <span onPointerDown={(e) => e.stopPropagation()}>
+          <HideHandle agentId={agent.id} />
+        </span>
         <AgentIcon agent={agent.id} size={18} />
         <h2 className="text-[14px] font-semibold">{agent.displayName}</h2>
         {!agent.detected && <Tag tone="warn">not installed</Tag>}
@@ -353,6 +377,10 @@ export function Board({
   const [dragged, setDragged] = useState<MemoryItem | null>(null);
   const [hiding, setHiding] = useState<string | null>(null);
   const toast = useToast();
+  // Column order is shared with the Skills view and persisted in localStorage.
+  const [{ indexOf }, moveColumn] = useColumnOrder('agent-mem:column-order', agents.map((a) => a.id));
+  const orderedAgents = useMemo(() => [...agents].sort((x, y) => indexOf(x.id) - indexOf(y.id)), [agents, indexOf]);
+  const [movingColumn, setMovingColumn] = useState<string | null>(null);
   // dnd-kit drops at the last pointermove. A pointer that jumps (remote desktop,
   // some automation) only reports the final position on pointerup, so remember it.
   const pointer = useRef({ x: 0, y: 0 });
@@ -374,20 +402,30 @@ export function Board({
   };
 
   const onDragStart = (e: DragStartEvent) => {
-    const data = e.active.data.current as { kind?: string; agentId?: string; item?: MemoryItem } | undefined;
+    const data = e.active.data.current as { kind?: string; agentId?: string; columnId?: string; item?: MemoryItem } | undefined;
     if (data?.kind === 'hide') {
       setHiding(data.agentId ?? null);
+      return;
+    }
+    if (data?.kind === 'column') {
+      setMovingColumn(data.columnId ?? null);
       return;
     }
     setDragged(data?.item ?? null);
   };
   const onDragEnd = (e: DragEndEvent) => {
-    const data = e.active.data.current as { kind?: string; agentId?: string; item?: MemoryItem } | undefined;
+    const data = e.active.data.current as { kind?: string; agentId?: string; columnId?: string; item?: MemoryItem } | undefined;
     if (data?.kind === 'hide') {
       setHiding(null);
       const header = document.elementFromPoint(pointer.current.x, pointer.current.y)?.closest('[data-agent-header]');
       const under = header instanceof HTMLElement ? header.dataset.agentHeader : undefined;
       if (data.agentId && under !== data.agentId) onHide(data.agentId);
+      return;
+    }
+    if (data?.kind === 'column') {
+      setMovingColumn(null);
+      const over = e.over?.id as string | undefined;
+      if (data.columnId && over && over !== data.columnId) moveColumn(data.columnId, over);
       return;
     }
     const item = data?.item;
@@ -434,13 +472,14 @@ export function Board({
             Every agent column is hidden. Tick at least one agent in the sidebar to see its memories.
           </p>
         )}
-        {agents.map((a) => (
+        {orderedAgents.map((a) => (
           <Column
             key={a.id}
             agent={a}
             agents={agents}
             items={memories.filter((m) => m.agent === a.id)}
             dragged={dragged}
+            movingColumn={movingColumn}
             project={project}
             emptyHint={query?.trim() ? `No matches for “${query.trim()}” in this column.` : undefined}
             onClearSearch={onClearSearch}
