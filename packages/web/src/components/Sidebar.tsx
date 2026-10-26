@@ -1,7 +1,7 @@
 import { Bot, FolderGit2, FolderPlus, Globe2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type AgentSummary, type ProjectInfo } from '../api';
-import { AgentDot, cx, relativeTime, useTildify } from '../ui';
+import { AgentDot, AgentIcon, cx, relativeTime, useTildify } from '../ui';
 import { useToast } from './Toasts';
 
 export function Sidebar({
@@ -75,7 +75,7 @@ export function Sidebar({
                 onChange={() => onToggleAgent(a.id)}
                 className="size-3.5 shrink-0 accent-[var(--color-signal)]"
               />
-              <AgentDot agent={a.id} size={8} />
+              <AgentIcon agent={a.id} size={16} />
               <span className={cx('min-w-0 flex-1 truncate', checked ? 'text-paper-dim' : 'text-paper-mute line-through decoration-ink-500')}>{a.displayName}</span>
               {!a.detected && (
                 <span className="shrink-0 rounded bg-warn/15 px-1.5 py-px text-[11px] font-medium leading-4 text-warn" title="Not detected on this machine">

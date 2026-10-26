@@ -139,3 +139,4 @@ pnpm --filter @agent-mem/web dev   # 前端热更新，接口代理到 4477
 - 各 agent 的目录结构会随版本变化。适配器用公开的路径约定，并带了三家会话格式的样例测试；对不上时优先看 `ls` 读到了什么。
 - 交接文档是给「下一次启动」读的，不会改写一个已经打开的会话。
 - 复制和交接会扫描常见的密钥格式并打码，但不能代替你自己看一遍 diff。
+- 界面中的 agent 图标取自各家官方素材（`packages/web/public/agents/`），仅用于标识对应产品；其版权归 Anthropic、OpenAI、Pi (pi.dev)、Google、Cursor、opencode、Z.ai、Qoder 各自所有。ZCode 官方暂未发布 SVG，使用其官方透明 PNG。

@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Link2, Plus, Table2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { AgentSummary, MatrixRow, MemoryItem, ShareStrategy } from '../api';
-import { AgentDot, agentColor, Button, cx, EmptyState, useTildify } from '../ui';
+import { agentColor, AgentIcon, Button, cx, EmptyState, useTildify } from '../ui';
 
 const STRATEGY_HELP: Record<ShareStrategy, string> = {
   import: 'Add an @import line. Stays in sync, Claude Code only.',
@@ -88,7 +88,7 @@ export function Matrix({
             {agents.map((a) => (
               <th key={a.id} scope="col" className="w-36 border-b border-l border-ink-700 px-3 py-2.5 text-center text-[12px] font-medium">
                 <span className="inline-flex items-center gap-1.5">
-                  <AgentDot agent={a.id} /> {a.displayName}
+                  <AgentIcon agent={a.id} size={14} /> {a.displayName}
                 </span>
               </th>
             ))}

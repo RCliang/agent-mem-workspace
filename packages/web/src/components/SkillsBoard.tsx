@@ -1,7 +1,7 @@
 import { ArrowRightLeft, Blocks, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { SkillItem, SkillLibrary } from '../api';
-import { AgentDot, agentColor, EmptyState, formatSize, relativeTime, Tag } from '../ui';
+import { AgentDot, AgentIcon, EmptyState, formatSize, relativeTime, Tag } from '../ui';
 
 function SkillCard({
   skill,
@@ -89,7 +89,7 @@ function SkillCard({
                   }}
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-ink-700"
                 >
-                  <span className="size-2 shrink-0 rounded-full" style={{ background: l.id === 'shared' ? 'var(--color-agent-other)' : agentColor(l.id) }} aria-hidden />
+                  {l.id === 'shared' ? <Blocks className="size-3.5 shrink-0 text-paper-mute" /> : <AgentIcon agent={l.id} size={14} />}
                   Migrate to {l.displayName}
                 </button>
               ))}
@@ -141,8 +141,11 @@ export function SkillsBoard({
         return (
           <section key={lib.id} data-skill-column={lib.id} aria-label={lib.displayName} className="flex min-w-[300px] flex-1 basis-0 flex-col rounded-xl border border-ink-700 bg-ink-900">
             <header className="flex items-center gap-2.5 border-b border-ink-700 px-4 py-3">
-              <span className="h-4 w-1 rounded-full" style={{ background: lib.id === 'shared' ? 'var(--color-agent-other)' : agentColor(lib.id) }} aria-hidden />
-              <Blocks className="size-4 text-paper-mute" aria-hidden />
+              {lib.id === 'shared' ? (
+                <Blocks className="size-[18px] text-paper-mute" aria-hidden />
+              ) : (
+                <AgentIcon agent={lib.id} size={18} />
+              )}
               <h2 className="text-[14px] font-semibold">{lib.displayName}</h2>
               {lib.id === 'shared' && (
                 <Tag tone="warn" title="Everything here is read by every agent following the .agents convention">

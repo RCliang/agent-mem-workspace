@@ -16,7 +16,7 @@ import {
 import { ArrowRightLeft, BrainCircuit, FilePlus2, FileText, Link2, MessagesSquare } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, api, type AgentSummary, type MemoryItem } from '../api';
-import { AgentDot, cx, formatSize, relativeTime, Tag, useTildify } from '../ui';
+import { AgentDot, AgentIcon, cx, formatSize, relativeTime, Tag, useTildify } from '../ui';
 import { ArmedAction } from './ArmedAction';
 import { useToast } from './Toasts';
 
@@ -196,7 +196,7 @@ function DraggableCard({
                   }}
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-ink-700"
                 >
-                  <AgentDot agent={a.id} size={7} />
+                  <AgentIcon agent={a.id} size={14} />
                   {item.kind === 'session' ? 'Hand off to' : 'Copy to'} {a.displayName}
                 </button>
               ))}
@@ -265,6 +265,7 @@ function Column({
     >
       <header data-agent-header={agent.id} className="flex items-center gap-2.5 border-b border-ink-700 px-4 py-3">
         <HideHandle agentId={agent.id} />
+        <AgentIcon agent={agent.id} size={18} />
         <h2 className="text-[14px] font-semibold">{agent.displayName}</h2>
         {!agent.detected && <Tag tone="warn">not installed</Tag>}
         <span className="ml-auto text-[11px] text-paper-mute" title={agent.capabilities.imports ? 'Reads @path imports' : 'Shared content is inlined'}>

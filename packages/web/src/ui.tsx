@@ -13,6 +13,24 @@ export const AGENT_COLORS: Record<string, string> = {
 
 export const agentColor = (id: string) => AGENT_COLORS[id] ?? 'var(--color-agent-other)';
 
+/** Official logomarks shipped in public/agents (artwork owned by each vendor). */
+const AGENT_ICONS: Record<string, string> = {
+  'claude-code': '/agents/claude-code.svg',
+  codex: '/agents/codex.svg',
+  pi: '/agents/pi.svg',
+  gemini: '/agents/gemini.svg',
+  cursor: '/agents/cursor.svg',
+  opencode: '/agents/opencode.svg',
+  zcode: '/agents/zcode.png',
+  qoder: '/agents/qoder.svg',
+};
+
+export function AgentIcon({ agent, size = 16, className }: { agent: string; size?: number; className?: string }) {
+  const src = AGENT_ICONS[agent];
+  if (!src) return <AgentDot agent={agent} size={Math.max(size, 8)} />;
+  return <img src={src} alt="" width={size} height={size} aria-hidden className={cx('shrink-0 object-contain', className)} />;
+}
+
 export function cx(...xs: (string | false | null | undefined)[]) {
   return xs.filter(Boolean).join(' ');
 }
