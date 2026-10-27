@@ -11,6 +11,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { ArrowRightLeft, BrainCircuit, FilePlus2, FileText, Link2, MessagesSquare } from 'lucide-react';
@@ -55,7 +56,7 @@ function CardBody({ item, agents, dragging }: { item: MemoryItem; agents: AgentS
     <div
       className={cx(
         'rounded-lg border bg-ink-850 px-3 py-2.5 transition-[border-color,box-shadow,transform] duration-150',
-        dragging ? 'rotate-[0.6deg] border-signal/70 shadow-[0_16px_40px_-10px_rgba(0,0,0,0.7)]' : 'border-ink-700 group-hover:border-ink-500',
+        dragging ? 'rotate-[0.6deg] scale-[1.02] border-signal/70 shadow-[0_24px_56px_-12px_rgba(0,0,0,0.8)]' : 'border-ink-700 group-hover:border-ink-500',
       )}
     >
       <div className="flex items-start gap-2">
@@ -96,6 +97,17 @@ function deleteArmedLabel(item: MemoryItem, agents: AgentSummary[]) {
   if (item.alsoReadBy.length === 0) return 'Delete this file?';
   const names = item.alsoReadBy.map((id) => agents.find((a) => a.id === id)?.displayName ?? id);
   return `Delete? Also read by ${names.join(', ')}`;
+}
+
+/** Pill that follows the cursor while a column header is being dragged. */
+function ColumnGhost({ agent }: { agent: AgentSummary }) {
+  return (
+    <div className="flex cursor-grabbing items-center gap-2.5 rounded-lg border border-signal/70 bg-ink-850 px-4 py-2.5 shadow-[0_24px_56px_-12px_rgba(0,0,0,0.8)]">
+      <AgentIcon agent={agent.id} size={18} />
+      <span className="text-[14px] font-semibold">{agent.displayName}</span>
+      <span className="text-[11px] text-paper-mute">move</span>
+    </div>
+  );
 }
 
 function HideHandle({ agentId }: { agentId: string }) {
@@ -428,13 +440,20 @@ export function Board({
       if (data.columnId && over && over !== data.columnId) moveColumn(data.columnId, over);
       return;
     }
-    const item = data?.item;
-    setDragged(null);
+    const item = data?.item;    setDragged(null);
     if (!item) return;
     const column = document.elementFromPoint(pointer.current.x, pointer.current.y)?.closest('[data-agent-column]');
     const underPointer = column instanceof HTMLElement ? column.dataset.agentColumn : undefined;
     const target = underPointer ?? (e.over?.id as string | undefined);
     if (target && target !== item.agent && !item.alsoReadBy.includes(target)) onDrop(item, target);
+  };
+
+  /** While a column drag is held, swap columns live so the new order previews before the mouse is released. */
+  const onDragOver = (e: DragOverEvent) => {
+    const data = e.active.data.current as { kind?: string; columnId?: string } | undefined;
+    if (data?.kind !== 'column') return;
+    const over = e.over?.id as string | undefined;
+    if (data.columnId && over && over !== data.columnId) moveColumn(data.columnId, over);
   };
 
   async function reveal(item: MemoryItem) {
@@ -461,9 +480,11 @@ export function Board({
       collisionDetection={collision}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
       onDragCancel={() => {
         setDragged(null);
         setHiding(null);
+        setMovingColumn(null);
       }}
     >
       <div className="flex h-full gap-4 overflow-x-auto p-5">
@@ -495,6 +516,10 @@ export function Board({
         {hiding ? (
           <div className="pointer-events-none">
             <AgentDot agent={hiding} size={12} />
+          </div>
+        ) : movingColumn ? (
+          <div className="pointer-events-none cursor-grabbing">
+            <ColumnGhost agent={agents.find((a) => a.id === movingColumn)!} />
           </div>
         ) : dragged ? (
           <div className="pointer-events-none w-[320px] cursor-grabbing">

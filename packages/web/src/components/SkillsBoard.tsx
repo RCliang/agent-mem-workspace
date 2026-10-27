@@ -11,6 +11,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { ArrowRightLeft, Blocks, Search, Trash2, X } from 'lucide-react';
@@ -23,7 +24,7 @@ function SkillCardBody({ skill, nameOf, dragging }: { skill: SkillItem; nameOf: 
     <div
       className={
         dragging
-          ? 'rounded-lg border border-signal/70 bg-ink-850 px-3 py-2.5 shadow-[0_16px_40px_-10px_rgba(0,0,0,0.7)]'
+          ? 'rotate-[0.6deg] scale-[1.02] rounded-lg border border-signal/70 bg-ink-850 px-3 py-2.5 shadow-[0_24px_56px_-12px_rgba(0,0,0,0.8)]'
           : 'rounded-lg border border-ink-700 bg-ink-850 px-3 py-2.5 transition-colors group-hover:border-ink-500'
       }
     >
@@ -311,6 +312,13 @@ export function SkillsBoard({
     const target = e.over?.id as string | undefined;
     if (skill && target && target !== skill.agent && !skill.alsoReadBy.includes(target)) onTransfer(skill, target);
   };
+  /** While a column drag is held, swap columns live so the new order previews before the mouse is released. */
+  const onDragOver = (e: DragOverEvent) => {
+    const data = e.active.data.current as { kind?: string; columnId?: string } | undefined;
+    if (data?.kind !== 'column') return;
+    const over = e.over?.id as string | undefined;
+    if (data.columnId && over && over !== data.columnId) moveColumn(data.columnId, over);
+  };
   const nameOf = (id: string) => libraries.find((l) => l.id === id)?.displayName ?? id;
 
   return (
@@ -341,7 +349,17 @@ export function SkillsBoard({
         </span>
       </div>
 
-      <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragged(null)}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collision}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={onDragOver}
+        onDragCancel={() => {
+          setDragged(null);
+          setMovingColumn(null);
+        }}
+      >
         <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-5">
           {orderedLibraries.map((lib) => (
             <SkillColumn
@@ -360,7 +378,19 @@ export function SkillsBoard({
           ))}
         </div>
         <DragOverlay dropAnimation={{ duration: 220, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }}>
-          {dragged ? (
+          {movingColumn ? (
+            <div className="pointer-events-none cursor-grabbing">
+              <div className="flex items-center gap-2.5 rounded-lg border border-signal/70 bg-ink-850 px-4 py-2.5 shadow-[0_24px_56px_-12px_rgba(0,0,0,0.8)]">
+                {movingColumn === 'shared' ? (
+                  <Blocks className="size-[18px] text-paper-mute" aria-hidden />
+                ) : (
+                  <AgentIcon agent={movingColumn} size={18} />
+                )}
+                <span className="text-[14px] font-semibold">{libraries.find((l) => l.id === movingColumn)?.displayName}</span>
+                <span className="text-[11px] text-paper-mute">move</span>
+              </div>
+            </div>
+          ) : dragged ? (
             <div className="pointer-events-none w-[300px] cursor-grabbing">
               <SkillCardBody skill={dragged} nameOf={nameOf} dragging />
             </div>
