@@ -2,6 +2,7 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   pointerWithin,
   rectIntersection,
@@ -420,6 +421,7 @@ export function Board({
       return;
     }
     if (data?.kind === 'column') {
+      lastSwap.current = {};
       setMovingColumn(data.columnId ?? null);
       return;
     }
@@ -449,11 +451,17 @@ export function Board({
   };
 
   /** While a column drag is held, swap columns live so the new order previews before the mouse is released. */
+  const lastSwap = useRef<{ active?: string; over?: string }>({});
   const onDragOver = (e: DragOverEvent) => {
     const data = e.active.data.current as { kind?: string; columnId?: string } | undefined;
     if (data?.kind !== 'column') return;
     const over = e.over?.id as string | undefined;
-    if (data.columnId && over && over !== data.columnId) moveColumn(data.columnId, over);
+    if (!data.columnId || !over || over === data.columnId) return;
+    // Until the droppable rects are re-measured the same pair keeps firing; a
+    // second identical event would swap the columns straight back.
+    if (lastSwap.current.active === data.columnId && lastSwap.current.over === over) return;
+    lastSwap.current = { active: data.columnId, over };
+    moveColumn(data.columnId, over);
   };
 
   async function reveal(item: MemoryItem) {
@@ -478,6 +486,8 @@ export function Board({
     <DndContext
       sensors={sensors}
       collisionDetection={collision}
+      // Reorderings move the droppable columns themselves; keep their rects fresh.
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}

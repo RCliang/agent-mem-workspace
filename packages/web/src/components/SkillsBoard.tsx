@@ -2,6 +2,7 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   pointerWithin,
   rectIntersection,
@@ -271,6 +272,7 @@ export function SkillsBoard({
   const [filter, setFilter] = useState('');
   const [dragged, setDragged] = useState<SkillItem | null>(null);
   const [movingColumn, setMovingColumn] = useState<string | null>(null);
+  const lastSwap = useRef<{ active?: string; over?: string }>({});
   // Library order is shared with the memory Board and persisted in localStorage.
   const [{ indexOf }, moveColumn] = useColumnOrder('agent-mem:column-order', libraries.map((l) => l.id));
   const orderedLibraries = useMemo(() => [...libraries].sort((x, y) => indexOf(x.id) - indexOf(y.id)), [libraries, indexOf]);
@@ -294,6 +296,7 @@ export function SkillsBoard({
   const onDragStart = (e: DragStartEvent) => {
     const data = e.active.data.current as { kind?: string; columnId?: string; skill?: SkillItem } | undefined;
     if (data?.kind === 'column') {
+      lastSwap.current = {};
       setMovingColumn(data.columnId ?? null);
       return;
     }
@@ -317,7 +320,12 @@ export function SkillsBoard({
     const data = e.active.data.current as { kind?: string; columnId?: string } | undefined;
     if (data?.kind !== 'column') return;
     const over = e.over?.id as string | undefined;
-    if (data.columnId && over && over !== data.columnId) moveColumn(data.columnId, over);
+    if (!data.columnId || !over || over === data.columnId) return;
+    // Until the droppable rects are re-measured the same pair keeps firing; a
+    // second identical event would swap the columns straight back.
+    if (lastSwap.current.active === data.columnId && lastSwap.current.over === over) return;
+    lastSwap.current = { active: data.columnId, over };
+    moveColumn(data.columnId, over);
   };
   const nameOf = (id: string) => libraries.find((l) => l.id === id)?.displayName ?? id;
 
@@ -352,6 +360,8 @@ export function SkillsBoard({
       <DndContext
         sensors={sensors}
         collisionDetection={collision}
+        // Reorderings move the droppable columns themselves; keep their rects fresh.
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onDragOver={onDragOver}
