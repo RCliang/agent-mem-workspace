@@ -3,6 +3,7 @@ import type { Context } from '../context.js';
 import { isDir, listDir } from '../fsutil.js';
 import type { AgentAdapter, MemoryItem } from '../types.js';
 import { fileItem, renderPlain } from './common.js';
+import { listCursorProjects, listCursorSessions, parseCursorSession } from './cursor-sessions.js';
 
 /** Cursor keeps rules as `.mdc` files in a rules directory, globally and per project. */
 export function cursorAdapter(ctx: Context): AgentAdapter {
@@ -24,13 +25,16 @@ export function cursorAdapter(ctx: Context): AgentAdapter {
 
     detect: () => isDir(root),
 
-    watchRoots: () => [globalRules],
+    watchRoots: () => [globalRules, path.join(root, 'projects')],
 
-    listProjects: async () => [],
+    listProjects: () => listCursorProjects(ctx.home),
 
     async readMemories(projectPath) {
       const items: (MemoryItem | null)[] = [...(await ruleItems(globalRules, 'global', null))];
-      if (projectPath) items.push(...(await ruleItems(path.join(projectPath, '.cursor', 'rules'), 'project', projectPath)));
+      if (projectPath) {
+        items.push(...(await ruleItems(path.join(projectPath, '.cursor', 'rules'), 'project', projectPath)));
+        items.push(...(await listCursorSessions(ctx.home, root, projectPath)));
+      }
       return items.filter((i): i is MemoryItem => i !== null);
     },
 
@@ -50,5 +54,7 @@ export function cursorAdapter(ctx: Context): AgentAdapter {
     },
 
     renderFor: renderPlain,
+
+    parseSession: (filePath) => parseCursorSession(ctx.home, filePath),
   };
 }

@@ -191,10 +191,10 @@ export function EditorDrawer({
         {tab === 'edit' ? (
           <div className="flex h-full min-h-0 flex-col">
             <article
-              className="md-preview max-h-[40%] shrink-0 overflow-y-auto border-b border-ink-700 px-5 py-4 text-[13px] leading-relaxed"
+              className="md-preview min-h-0 flex-1 overflow-y-auto border-b border-ink-700 px-5 py-4 text-[13px] leading-relaxed"
               dangerouslySetInnerHTML={{ __html: renderMarkdown(draft) }}
             />
-            <div className="min-h-0 flex-1">
+            <div className="h-[38%] min-h-[160px] shrink-0">
               <CodeMirror value={draft} onChange={setDraft} extensions={extensions} theme="none" height="100%" className="h-full" basicSetup={{ foldGutter: false }} />
             </div>
           </div>

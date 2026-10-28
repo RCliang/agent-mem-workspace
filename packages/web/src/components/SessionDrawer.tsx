@@ -1,6 +1,7 @@
 import { ArrowRightLeft, Wrench, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type AgentSummary, type MemoryItem, type ParsedSession } from '../api';
+import { renderMarkdown } from '../markdown';
 import { AgentDot, cx, useTildify } from '../ui';
 
 export function SessionDrawer({
@@ -81,7 +82,9 @@ export function SessionDrawer({
         {visible.map((m, i) => (
           <article key={i} className={cx('rounded-lg px-3.5 py-2.5', m.role === 'user' ? 'bg-ink-800' : 'border border-ink-700')}>
             <h3 className="mb-1 text-[11px] font-medium text-paper-mute">{m.role === 'user' ? 'User' : 'Agent'}</h3>
-            {m.text && <p className="max-w-[72ch] whitespace-pre-wrap break-words text-[13px] leading-relaxed">{m.text.length > 1800 ? `${m.text.slice(0, 1800)}...` : m.text}</p>}
+            {m.text && (
+              <div className="md-preview max-w-[72ch] text-[13px] leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }} />
+            )}
             {m.toolCalls.length > 0 && (
               <ul className="mt-1.5 flex flex-wrap gap-1.5">
                 {m.toolCalls.map((t, j) => (

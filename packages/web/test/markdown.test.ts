@@ -10,4 +10,11 @@ describe('renderMarkdown', () => {
     expect(html).not.toContain('<script');
     expect(html).toContain('&lt;script&gt;');
   });
+
+  it('renders tables and quotes from a handoff', () => {
+    const html = renderMarkdown('> note\n\n| 档位 | 效果 |\n| --- | --- |\n| low | 快 |');
+    expect(html).toContain('<blockquote');
+    expect(html).toContain('<table');
+    expect(html).toContain('<td');
+  });
 });

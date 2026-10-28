@@ -93,13 +93,20 @@ function normalizeRole(role: unknown): SessionMessage['role'] | undefined {
 }
 
 /**
- * Parse one JSONL record from Claude Code, Codex or Pi into a normalized message.
+ * Parse one JSONL record from Claude Code, Codex, Pi, Cursor, or Qoder into a normalized message.
  * The formats differ mainly in where the `{role, content}` pair lives.
  */
 export function parseRecord(obj: unknown): SessionMessage | undefined {
   if (!isObj(obj)) return undefined;
   const timestamp = str(obj.timestamp);
-  // Claude Code: {type: "user"|"assistant", message: {role, content}}
+  // Cursor agent transcripts: {role, message: {content}} with no type field.
+  if (!obj.type && isObj(obj.message) && (obj.role === 'user' || obj.role === 'assistant')) {
+    const role = normalizeRole(obj.role);
+    if (!role) return undefined;
+    const ex = extractContent(obj.message.content);
+    return { role: ex.onlyToolResults ? 'tool' : role, text: ex.text, toolCalls: ex.toolCalls, timestamp };
+  }
+  // Claude Code and Qoder: {type: "user"|"assistant", message: {role, content}}
   // Pi: {type: "message", message: {role, content}}
   if (isObj(obj.message) && (obj.type === 'user' || obj.type === 'assistant' || obj.type === 'message')) {
     if (obj.isMeta === true || obj.isSidechain === true) return undefined;
