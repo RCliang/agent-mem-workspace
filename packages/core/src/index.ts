@@ -23,4 +23,5 @@ export { cursorAdapter } from './adapters/cursor.js';
 export { opencodeAdapter } from './adapters/opencode.js';
 export { zcodeAdapter } from './adapters/zcode.js';
 export { qoderAdapter } from './adapters/qoder.js';
+export { deepseekHarnessAdapter } from './adapters/deepseek-harness.js';
 export { declarativeAdapter, type DeclarativeAgentSpec } from './adapters/declarative.js';

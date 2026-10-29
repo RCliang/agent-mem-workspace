@@ -63,6 +63,7 @@ export function createDemoContext(): { ctx: Context; root: string } {
   write(path.join(home, '.config', 'opencode', 'AGENTS.md'), '# opencode global instructions\n\n- Prefer small, focused modules.\n');
   write(path.join(home, '.zcode', 'AGENTS.md'), '# ZCode global instructions\n\n- Keep the public API small.\n');
   write(path.join(home, '.qoder', 'AGENTS.md'), '# Qoder global instructions\n\n- Name the write target explicitly.\n');
+  write(path.join(home, '.dsh', 'AGENTS.md'), '# DeepSeek Harness global instructions\n\n- Keep tool calls explicit.\n');
   write(path.join(project, 'AGENTS.local.md'), '# shop-api local notes\n\n- Do not commit this file.\n');
   write(path.join(project, '.qoder', 'rules', 'style.md'), '# Style\n\n- Prefer named exports.\n');
 
@@ -76,6 +77,10 @@ export function createDemoContext(): { ctx: Context; root: string } {
     '---\nname: browse\ndescription: Open pages and assert on them from Codex.\n---\n\nbody\n',
   );
   write(
+    path.join(home, '.dsh', 'skills', 'harness-check', 'SKILL.md'),
+    '---\nname: harness-check\ndescription: Validate a DeepSeek Harness workspace.\n---\n\nusage\n',
+  );
+  write(
     path.join(home, '.agents', 'skills', 'agent-reach', 'SKILL.md'),
     '---\nname: agent-reach\ndescription: >\n  MUST USE when the user wants to research or search anything on the internet.\n---\n\nreach out\n',
   );
@@ -87,6 +92,10 @@ export function createDemoContext(): { ctx: Context; root: string } {
   write(
     path.join(project, '.claude', 'skills', 'shop-helper', 'SKILL.md'),
     '---\nname: shop-helper\ndescription: Project-specific helpers for shop-api.\n---\n\nusage\n',
+  );
+  write(
+    path.join(project, '.dsh', 'skills', 'release-check', 'SKILL.md'),
+    '---\nname: release-check\ndescription: Check shop-api releases with DeepSeek Harness.\n---\n\nusage\n',
   );
 
   return { ctx: createContext({ home, dataDir: path.join(home, '.agent-mem'), env: {} }), root };

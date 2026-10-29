@@ -80,6 +80,7 @@ describe('sharing', () => {
       'opencode:native',
       'zcode:native',
       'qoder:native',
+      'deepseek-harness:native',
     ]);
     expect(rows.filter((r) => r.item.filePath === path.join(project, 'AGENTS.md'))).toHaveLength(1);
   });

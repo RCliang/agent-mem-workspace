@@ -13,6 +13,8 @@ describe('skills discovery', () => {
       'claude-code|global|browse|own',
       'claude-code|project|shop-helper|own',
       'codex|global|browse|own',
+      'deepseek-harness|global|harness-check|own',
+      'deepseek-harness|project|release-check|own',
       'shared|global|agent-reach|shared',
       'shared|project|akshare|shared',
     ]);
@@ -25,13 +27,14 @@ describe('skills discovery', () => {
   it('only lists globals when no project is given', async () => {
     const { hub } = await setup();
     const skills = await listSkills(hub, null);
-    expect(skills.map((s) => s.name).sort()).toEqual(['agent-reach', 'browse', 'browse']);
+    expect(skills.map((s) => s.name).sort()).toEqual(['agent-reach', 'browse', 'browse', 'harness-check']);
   });
 
   it('exposes the library columns including shared', async () => {
     const { hub } = await setup();
     const libs = await skillLibraries(hub);
     expect(libs.map((l) => l.id)).toContain('claude-code');
+    expect(libs.map((l) => l.id)).toContain('deepseek-harness');
     expect(libs.map((l) => l.id)).toContain('shared');
   });
 

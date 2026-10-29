@@ -17,6 +17,7 @@ describe('adapters', () => {
       ['opencode', true],
       ['zcode', true],
       ['qoder', true],
+      ['deepseek-harness', true],
     ]);
   });
 
@@ -50,6 +51,10 @@ describe('adapters', () => {
       'codex|project|instructions|AGENTS.md',
       'cursor|global|instructions|core.mdc',
       'cursor|project|instructions|backend.mdc',
+      'deepseek-harness|global|instructions|AGENTS.md',
+      'deepseek-harness|local|instructions|AGENTS.local.md',
+      'deepseek-harness|project|instructions|AGENTS.md',
+      'deepseek-harness|project|instructions|CLAUDE.md',
       'gemini|global|instructions|GEMINI.md',
       'gemini|project|instructions|GEMINI.md',
       'opencode|global|instructions|AGENTS.md',
@@ -71,9 +76,9 @@ describe('adapters', () => {
     const { hub, project } = await setup();
     const items = await hub.memories(project);
     const codexAgents = items.find((i) => i.agent === 'codex' && i.filePath === path.join(project, 'AGENTS.md'));
-    expect(codexAgents?.alsoReadBy).toEqual(['pi', 'opencode', 'zcode', 'qoder']);
+    expect(codexAgents?.alsoReadBy).toEqual(['pi', 'opencode', 'zcode', 'qoder', 'deepseek-harness']);
     const claudeMd = items.find((i) => i.agent === 'claude-code' && i.filePath === path.join(project, 'CLAUDE.md'));
-    expect(claudeMd?.alsoReadBy).toEqual(['pi']);
+    expect(claudeMd?.alsoReadBy).toEqual(['pi', 'deepseek-harness']);
   });
 
   it('reads the extra built-in agents (Gemini CLI, Cursor, opencode)', async () => {
@@ -101,11 +106,32 @@ describe('adapters', () => {
     expect(hub.adapter('qoder').cli).toBeUndefined();
   });
 
+  it('reads the DeepSeek Harness instruction chain and uses its write targets', async () => {
+    const { hub, home, project } = await setup();
+    fs.writeFileSync(path.join(home, '.agents', 'AGENTS.md'), '# Shared Harness instructions\n');
+    fs.writeFileSync(path.join(project, 'CLAUDE.local.md'), '# Local Harness instructions\n');
+    const adapter = hub.adapter('dsh');
+    expect(adapter.id).toBe('deepseek-harness');
+    expect(adapter.capabilities.imports).toBe(false);
+    expect(adapter.cli).toBeUndefined();
+    expect(adapter.instructionFile(null).filePath).toBe(path.join(home, '.dsh', 'AGENTS.md'));
+    expect(adapter.instructionFile(project).filePath).toBe(path.join(project, 'AGENTS.md'));
+    const items = (await hub.memories(project)).filter((i) => i.agent === 'deepseek-harness');
+    expect(items.map((i) => i.filePath)).toEqual([
+      path.join(home, '.dsh', 'AGENTS.md'),
+      path.join(home, '.agents', 'AGENTS.md'),
+      path.join(project, 'AGENTS.md'),
+      path.join(project, 'CLAUDE.md'),
+      path.join(project, 'AGENTS.local.md'),
+      path.join(project, 'CLAUDE.local.md'),
+    ]);
+  });
+
   it('marks the instruction file as the write target and leaves Qoder rules false', async () => {
     const { hub, project } = await setup();
     const items = await hub.memories(project);
     const agentsMd = items.filter((i) => i.filePath === path.join(project, 'AGENTS.md'));
-    expect(agentsMd.map((i) => i.agent)).toEqual(['codex', 'pi', 'opencode', 'zcode', 'qoder']);
+    expect(agentsMd.map((i) => i.agent)).toEqual(['codex', 'pi', 'opencode', 'zcode', 'qoder', 'deepseek-harness']);
     expect(agentsMd.every((i) => i.isWriteTarget)).toBe(true);
     const rule = items.find((i) => i.agent === 'qoder' && i.filePath === path.join(project, '.qoder', 'rules', 'style.md'));
     expect(rule?.kind).toBe('instructions');

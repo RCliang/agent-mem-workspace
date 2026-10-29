@@ -18,7 +18,7 @@ describe('bundle export/import', () => {
       'GEMINI.md',
     ]);
     const agents = bundle.items.find((i) => i.relPath === 'AGENTS.md');
-    expect(agents?.agents.sort()).toEqual(['codex', 'opencode', 'pi', 'qoder', 'zcode']);
+    expect(agents?.agents.sort()).toEqual(['codex', 'deepseek-harness', 'opencode', 'pi', 'qoder', 'zcode']);
     expect(bundle.items.every((i) => !path.isAbsolute(i.relPath) && i.content.length > 0)).toBe(true);
     // Auto memory under ~/.claude and sessions stay out of the bundle.
     expect(bundle.items.some((i) => i.relPath.includes('.claude'))).toBe(false);

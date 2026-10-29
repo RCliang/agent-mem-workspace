@@ -129,7 +129,7 @@ describe('agent-mem cli', () => {
     const json = capture();
     expect(await run(['agents', '--json'], json.io)).toBe(0);
     const parsed = JSON.parse(json.text().out) as { id: string; detected: boolean }[];
-    expect(parsed.map((a) => a.id)).toEqual(['claude-code', 'codex', 'pi', 'gemini', 'cursor', 'opencode', 'zcode', 'qoder']);
+    expect(parsed.map((a) => a.id)).toEqual(['claude-code', 'codex', 'pi', 'gemini', 'cursor', 'opencode', 'zcode', 'qoder', 'deepseek-harness']);
     expect(parsed.every((a) => a.detected)).toBe(true);
   });
 
