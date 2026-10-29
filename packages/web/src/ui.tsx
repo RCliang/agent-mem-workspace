@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, ComponentType, ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Info } from './api';
+import { useI18n } from './i18n';
 
 export const AGENT_COLORS: Record<string, string> = {
   'claude-code': 'var(--color-agent-claude)',
@@ -9,6 +10,7 @@ export const AGENT_COLORS: Record<string, string> = {
   gemini: 'var(--color-agent-gemini)',
   cursor: 'var(--color-agent-cursor)',
   opencode: 'var(--color-agent-opencode)',
+  'deepseek-harness': 'var(--color-agent-deepseek)',
 };
 
 export const agentColor = (id: string) => AGENT_COLORS[id] ?? 'var(--color-agent-other)';
@@ -23,6 +25,7 @@ const AGENT_ICONS: Record<string, string> = {
   opencode: '/agents/opencode.svg',
   zcode: '/agents/zcode.png',
   qoder: '/agents/qoder.svg',
+  'deepseek-harness': '/agents/deepseek-harness.svg',
 };
 
 export function AgentIcon({ agent, size = 16, className }: { agent: string; size?: number; className?: string }) {
@@ -42,15 +45,18 @@ export function useTildify() {
   return (p: string) => (home && (p === home || p.startsWith(home + '/')) ? '~' + p.slice(home.length) : p);
 }
 
-export function relativeTime(ms: number): string {
-  if (!ms) return '';
-  const s = Math.round((Date.now() - ms) / 1000);
-  if (s < 60) return 'just now';
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 48) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
+export function useRelativeTime() {
+  const { t } = useI18n();
+  return (ms: number): string => {
+    if (!ms) return '';
+    const s = Math.round((Date.now() - ms) / 1000);
+    if (s < 60) return t('time.now');
+    const m = Math.round(s / 60);
+    if (m < 60) return t('time.minutes', { count: m });
+    const h = Math.round(m / 60);
+    if (h < 48) return t('time.hours', { count: h });
+    return t('time.days', { count: Math.round(h / 24) });
+  };
 }
 
 export function formatSize(n: number): string {
@@ -67,6 +73,13 @@ export function EmptyState({ icon: Icon, title, hint, action }: { icon?: Compone
       {action}
     </div>
   );
+}
+
+export type ColumnSwap = { active?: string; over?: string };
+
+export function shouldMoveColumn(activeId: string | undefined, overId: string | undefined, previous?: ColumnSwap) {
+  if (!activeId || !overId || activeId === overId) return false;
+  return previous?.active !== activeId || previous?.over !== overId;
 }
 
 /**
@@ -119,8 +132,8 @@ export function Button({ variant = 'ghost', className, children, ...rest }: Butt
       type="button"
       {...rest}
       className={cx(
-        'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45',
-        variant === 'primary' && 'bg-signal text-signal-ink hover:bg-[#f0bf63]',
+        'hit-target inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-4 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45 disabled:active:translate-y-0',
+        variant === 'primary' && 'bg-signal text-signal-ink shadow-[var(--shadow-primary)] hover:bg-signal-hover',
         variant === 'ghost' && 'border border-ink-600 text-paper hover:border-ink-500 hover:bg-ink-800',
         variant === 'quiet' && 'text-paper-dim hover:bg-ink-800 hover:text-paper',
         variant === 'danger' && 'border border-danger/50 text-danger hover:bg-danger/10',
@@ -137,7 +150,7 @@ export function Tag({ children, tone = 'plain', title }: { children: ReactNode; 
     <span
       title={title}
       className={cx(
-        'inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-px text-[11px] font-medium leading-4',
+        'inline-flex items-center gap-1 rounded-full px-2 py-px text-[11px] font-medium whitespace-nowrap leading-4',
         tone === 'plain' && 'bg-ink-700 text-paper-dim',
         tone === 'warn' && 'bg-warn/15 text-warn',
         tone === 'ok' && 'bg-ok/15 text-ok',

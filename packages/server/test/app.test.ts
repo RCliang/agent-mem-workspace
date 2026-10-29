@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { MemoryItem, Plan } from '@agent-mem/core';
 import { createApp, EventBus, startWatcher, watchTargets, type HubEvent } from '@agent-mem/server';
 import { describe, expect, it, vi } from 'vitest';
+import { directoryPicker, directoryPickerCommand } from '../src/pick-directory.js';
 import { revealCommand, revealFile, revealOpener } from '../src/reveal.js';
 import { setup } from '../../core/test/helpers.js';
 
@@ -54,6 +55,46 @@ describe('HTTP API', () => {
     expect((del.json as { notes: string[] }).notes.join(' ')).not.toMatch(/shared \.agents library/);
   });
 
+  it('adds a project chosen in the native folder picker and ignores cancellation', async () => {
+    const { call, otherProject, bus } = await makeApp();
+    const events: HubEvent[] = [];
+    bus.on((e) => events.push(e));
+    const spy = vi
+      .spyOn(directoryPicker, 'run')
+      .mockResolvedValueOnce({ code: 0, stdout: `${otherProject}\n`, stderr: '' })
+      .mockResolvedValueOnce({ code: 0, stdout: '', stderr: '' });
+    try {
+      const picked = await call('POST', '/api/projects/pick');
+      expect(picked.status).toBe(200);
+      expect(picked.json.path).toBe(otherProject);
+      expect(picked.json.projects.some((p: { path: string }) => p.path === otherProject)).toBe(true);
+      const expected = directoryPickerCommand();
+      expect(spy).toHaveBeenCalledWith(expected.command, expected.args);
+
+      const cancelled = await call('POST', '/api/projects/pick');
+      expect(cancelled.status).toBe(200);
+      expect(cancelled.json.path).toBeNull();
+      expect(events.filter((e) => e.type === 'roots')).toHaveLength(1);
+      expect(directoryPickerCommand('win32').command).toBe('powershell.exe');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('removes a project from the list and keeps it hidden', async () => {
+    const { call, otherProject } = await makeApp();
+    await call('POST', '/api/projects', { path: otherProject });
+    expect((await call('GET', '/api/projects')).json.some((p: { path: string }) => p.path === otherProject)).toBe(true);
+    const removed = await call('DELETE', '/api/projects', { path: otherProject });
+    expect(removed.status).toBe(200);
+    expect(removed.json.some((p: { path: string }) => p.path === otherProject)).toBe(false);
+    expect((await call('GET', '/api/projects')).json.some((p: { path: string }) => p.path === otherProject)).toBe(false);
+
+    const readded = await call('POST', '/api/projects', { path: otherProject });
+    expect(readded.status).toBe(200);
+    expect(readded.json.some((p: { path: string }) => p.path === otherProject)).toBe(true);
+  });
+
   it('lists agents, projects and memories', async () => {
     const { call, project } = await makeApp();
     expect((await call('GET', '/api/agents')).json.map((a: { id: string }) => a.id)).toEqual([
@@ -65,10 +106,11 @@ describe('HTTP API', () => {
       'opencode',
       'zcode',
       'qoder',
+      'deepseek-harness',
     ]);
     expect((await call('GET', '/api/projects')).json.some((p: { path: string }) => p.path === project)).toBe(true);
     const mems: MemoryItem[] = (await call('GET', `/api/memories?project=${encodeURIComponent(project)}`)).json;
-    expect(mems.length).toBe(23);
+    expect(mems.length).toBe(27);
     const globals: MemoryItem[] = (await call('GET', '/api/memories')).json;
     expect(globals.every((m) => m.scope === 'global')).toBe(true);
   });

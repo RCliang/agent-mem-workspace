@@ -18,36 +18,41 @@ import {
 import { ArrowRightLeft, Blocks, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SkillItem, SkillLibrary } from '../api';
-import { AgentDot, AgentIcon, cx, EmptyState, formatSize, relativeTime, Tag, useColumnOrder } from '../ui';
+import { useI18n } from '../i18n';
+import { AgentDot, AgentIcon, cx, EmptyState, formatSize, shouldMoveColumn, Tag, useColumnOrder, useRelativeTime } from '../ui';
 
 function SkillCardBody({ skill, nameOf, dragging }: { skill: SkillItem; nameOf: (id: string) => string; dragging?: boolean }) {
+  const { t } = useI18n();
+  const relativeTime = useRelativeTime();
   return (
     <div
       className={
         dragging
-          ? 'rotate-[0.6deg] scale-[1.02] rounded-lg border border-signal/70 bg-ink-850 px-3 py-2.5 shadow-[0_24px_56px_-12px_rgba(0,0,0,0.8)]'
-          : 'rounded-lg border border-ink-700 bg-ink-850 px-3 py-2.5 transition-colors group-hover:border-ink-500'
+          ? 'rotate-[0.6deg] scale-[1.02] rounded-lg bg-ink-850 px-3.5 py-3 shadow-[var(--shadow-drag)] outline outline-signal/70'
+          : 'rounded-lg bg-ink-850 px-3.5 py-3 shadow-[var(--shadow-card)] transition-[background-color,box-shadow,transform] duration-150 group-hover:bg-ink-800'
       }
     >
-      <p className="truncate font-mono text-[13px] font-medium">{skill.name}</p>
-      {skill.description && <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-paper-dim">{skill.description}</p>}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {skill.scope === 'project' && <Tag>project</Tag>}
+      <p className="truncate pr-5 text-[13px] leading-snug font-medium text-paper">{skill.name}</p>
+      {skill.description && <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-paper-dim">{skill.description}</p>}
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        {skill.scope === 'project' && <Tag>{t('common.project')}</Tag>}
         {skill.shared && (
-          <Tag tone="warn" title="This library is read by several agents; changes affect all of them">
-            shared
+          <Tag tone="warn" title={t('skills.sharedTitle')}>
+            {t('common.shared')}
           </Tag>
         )}
         {skill.alsoReadBy.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-paper-mute" title={`Also read by ${skill.alsoReadBy.map(nameOf).join(', ')}`}>
-            also read by
+          <span className="inline-flex items-center gap-1 text-[11px] text-paper-mute" title={t('common.alsoReadByTitle', { names: skill.alsoReadBy.map(nameOf).join(', ') })}>
+            {t('common.alsoReadBy')}
             {skill.alsoReadBy.map((a) => (
               <AgentDot key={a} agent={a} size={7} />
             ))}
           </span>
         )}
-        <span className="ml-auto text-[11px] text-paper-mute">
-          {skill.fileCount} file{skill.fileCount === 1 ? '' : 's'} · {formatSize(skill.sizeBytes)} · {relativeTime(skill.mtimeMs)}
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-[11px] whitespace-nowrap text-paper-mute">
+          <span>{t('common.files', { count: skill.fileCount, suffix: skill.fileCount === 1 ? '' : 's' })}</span>
+          <span>{formatSize(skill.sizeBytes)}</span>
+          <span>{relativeTime(skill.mtimeMs)}</span>
         </span>
       </div>
     </div>
@@ -69,6 +74,7 @@ function SkillCard({
   onTransfer: (s: SkillItem, target: string) => void;
   onDelete: (s: SkillItem) => void;
 }) {
+  const { t } = useI18n();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${libId}:${skill.id}`, data: { skill } });
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -89,15 +95,15 @@ function SkillCard({
   }, [open]);
 
   return (
-    <li className="relative">
+    <li className="group relative">
       <button
         ref={setNodeRef}
         type="button"
         {...listeners}
         {...attributes}
         onClick={() => onOpen(skill)}
-        aria-label={`${skill.name}. Drag it onto another library to copy it, or open to read and edit its SKILL.md.`}
-        className={cx('group block w-full cursor-grab text-left select-none active:cursor-grabbing', isDragging && 'opacity-35')}
+        aria-label={t('skills.cardAria', { name: skill.name })}
+        className={cx('block w-full cursor-grab text-left select-none active:cursor-grabbing', isDragging && 'opacity-35')}
       >
         <SkillCardBody skill={skill} nameOf={nameOf} />
       </button>
@@ -107,14 +113,14 @@ function SkillCard({
             type="button"
             aria-haspopup="menu"
             aria-expanded={open}
-            aria-label={`Migrate or delete ${skill.name}`}
+            aria-label={t('skills.migrateDelete', { name: skill.name })}
             onClick={() => setOpen((v) => !v)}
-            className="rounded p-1 text-ink-500 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-ink-800 hover:text-paper focus-visible:opacity-100"
+            className="hit-target rounded-md p-1 text-ink-500 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-ink-700 hover:text-paper focus-visible:opacity-100 max-lg:opacity-100 [@media(pointer:coarse)]:opacity-100"
           >
             <ArrowRightLeft className="size-3.5" />
           </button>
           {open && (
-            <div role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-ink-600 bg-ink-850 p-1 shadow-[0_16px_40px_-10px_rgba(0,0,0,0.7)]">
+            <div role="menu" className="absolute right-0 z-[var(--z-dropdown)] mt-1 w-56 rounded-lg border border-ink-600 bg-ink-850 p-1 shadow-[var(--shadow-menu)]">
               {targets.map((l) => (
                 <button
                   key={l.id}
@@ -127,7 +133,7 @@ function SkillCard({
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-ink-700"
                 >
                   {l.id === 'shared' ? <Blocks className="size-3.5 shrink-0 text-paper-mute" /> : <AgentIcon agent={l.id} size={14} />}
-                  Migrate to {l.displayName}
+                  {t('skills.migrateTo', { name: l.displayName })}
                 </button>
               ))}
               <button
@@ -139,7 +145,7 @@ function SkillCard({
                 }}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-danger hover:bg-danger/10"
               >
-                <Trash2 className="size-3.5" /> Delete…
+                <Trash2 className="size-3.5" /> {t('common.deleteEllipsis')}
               </button>
             </div>
           )}
@@ -173,6 +179,7 @@ function SkillColumn({
   onTransfer: (s: SkillItem, target: string) => void;
   onDelete: (s: SkillItem) => void;
 }) {
+  const { t } = useI18n();
   const disabled = !!dragged && (dragged.agent === lib.id || dragged.alsoReadBy.includes(lib.id));
   const { setNodeRef, isOver } = useDroppable({ id: lib.id, disabled });
   const { attributes: columnAttrs, listeners: columnListeners, setNodeRef: setHeaderRef } = useDraggable({
@@ -186,14 +193,14 @@ function SkillColumn({
       data-skill-column={lib.id}
       aria-label={lib.displayName}
       className={cx(
-        'relative flex min-w-[300px] flex-1 basis-0 flex-col rounded-xl border bg-ink-900 transition-[border-color,background-color] duration-200',
+        'relative flex min-w-0 flex-col border-r border-b border-ink-700 bg-ink-900 transition-[border-color,background-color] duration-200',
         movingColumn
           ? columnDropTarget
-            ? 'border-signal bg-ink-850 outline-2 outline-dashed outline-signal/50'
-            : 'border-ink-700'
+            ? 'border-signal bg-ink-950 outline-2 -outline-offset-2 outline-dashed outline-signal/50'
+            : ''
           : isOver && !disabled
-            ? 'border-signal bg-ink-850'
-            : 'border-ink-700',
+            ? 'border-signal bg-ink-950 outline-2 -outline-offset-2 outline-signal'
+            : '',
         movingColumn === lib.id && 'opacity-70',
         dragged && disabled && 'opacity-55',
       )}
@@ -202,30 +209,30 @@ function SkillColumn({
         ref={setHeaderRef}
         {...columnListeners}
         {...columnAttrs}
-        title="Drag the header to reorder the columns"
-        className="flex cursor-grab items-center gap-2.5 border-b border-ink-700 px-4 py-3 select-none active:cursor-grabbing"
+        title={t('common.dragReorder')}
+        className="flex min-h-14 shrink-0 cursor-grab items-center gap-2.5 border-b border-ink-700 px-5 py-4 select-none active:cursor-grabbing"
       >
-        {lib.id === 'shared' ? <Blocks className="size-[18px] text-paper-mute" aria-hidden /> : <AgentIcon agent={lib.id} size={18} />}
-        <h2 className="text-[14px] font-semibold">{lib.displayName}</h2>
+        {lib.id === 'shared' ? <Blocks className="size-[18px] shrink-0 text-paper-mute" aria-hidden /> : <AgentIcon agent={lib.id} size={18} />}
+        <h2 className="truncate text-[14px] leading-5 font-semibold">{lib.displayName}</h2>
         {lib.id === 'shared' && (
-          <Tag tone="warn" title="Everything here is read by every agent following the .agents convention">
-            shared
+          <Tag tone="warn" title={t('skills.sharedLibraryTitle')}>
+            {t('common.shared')}
           </Tag>
         )}
-        <span className="ml-auto text-[11px] text-paper-mute">{items.length}</span>
+        <span className="ml-auto shrink-0 text-[12px] font-medium tabular-nums text-paper-dim">{items.length}</span>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         {items.length === 0 && (
           <p className="px-1 py-2 text-[13px] text-paper-mute">
-            {emptyHint ?? 'No skills in this library yet.'}
+            {emptyHint ?? t('skills.noSkills')}
             {emptyHint && onClearSearch && (
               <button type="button" onClick={onClearSearch} className="ml-1 text-signal hover:underline">
-                clear
+                {t('common.clear')}
               </button>
             )}
           </p>
         )}
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {items.map((s) => (
             <SkillCard key={`${lib.id}:${s.id}`} skill={s} libId={lib.id} libraries={libraries} onOpen={onOpen} onTransfer={onTransfer} onDelete={onDelete} />
           ))}
@@ -235,16 +242,16 @@ function SkillColumn({
       {dragged && !disabled && (
         <div
           className={cx(
-            'pointer-events-none absolute inset-x-3 bottom-3 rounded-lg border border-dashed px-3 py-2.5 text-center text-[12px] transition-colors',
+            'pointer-events-none absolute inset-x-4 bottom-4 rounded-lg border border-dashed px-3 py-2.5 text-center text-[12px] transition-colors',
             isOver ? 'border-signal bg-signal/10 text-signal' : 'border-ink-500 bg-ink-900/95 text-paper-dim',
           )}
         >
-          Drop to copy “{dragged.name}” into {lib.displayName}
+          {t('skills.dropCopy', { name: dragged.name, library: lib.displayName })}
         </div>
       )}
       {dragged && disabled && (
-        <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-lg bg-ink-800 px-3 py-2.5 text-center text-[12px] text-paper-mute">
-          Already in this library
+        <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-lg bg-ink-800 px-3 py-2.5 text-center text-[12px] text-paper-mute">
+          {t('skills.alreadyInLibrary')}
         </div>
       )}
     </section>
@@ -269,6 +276,7 @@ export function SkillsBoard({
   onTransfer: (s: SkillItem, target: string) => void;
   onDelete: (s: SkillItem) => void;
 }) {
+  const { t } = useI18n();
   const [filter, setFilter] = useState('');
   const [dragged, setDragged] = useState<SkillItem | null>(null);
   const [movingColumn, setMovingColumn] = useState<string | null>(null);
@@ -283,14 +291,17 @@ export function SkillsBoard({
   };
 
   if (libraries.length === 0) {
-    return <EmptyState icon={Blocks} title="No skill libraries found" hint="Install an agent with a skills folder, or create ~/.agents/skills." />;
+    return <EmptyState icon={Blocks} title={t('skills.noLibraries')} hint={t('skills.noLibrariesHint')} />;
   }
 
   const needle = filter.trim().toLowerCase();
   const visible = needle ? skills.filter((s) => `${s.name} ${s.description}`.toLowerCase().includes(needle)) : skills;
   const searching = !!query?.trim() || !!needle;
   const emptyHint = searching
-    ? `No matches${needle ? ` for “${filter.trim()}”` : ''}${query?.trim() && needle ? ' (or the header search)' : ''}.`
+    ? t('skills.noMatches', {
+        query: needle ? t('skills.forQuery', { query: filter.trim() }) : '',
+        header: query?.trim() && needle ? t('skills.headerSearch') : '',
+      })
     : undefined;
 
   const onDragStart = (e: DragStartEvent) => {
@@ -307,7 +318,8 @@ export function SkillsBoard({
     if (data?.kind === 'column') {
       setMovingColumn(null);
       const over = e.over?.id as string | undefined;
-      if (data.columnId && over && over !== data.columnId) moveColumn(data.columnId, over);
+      const active = data.columnId;
+      if (active && over && shouldMoveColumn(active, over, lastSwap.current)) moveColumn(active, over);
       return;
     }
     const skill = data?.skill;
@@ -320,12 +332,13 @@ export function SkillsBoard({
     const data = e.active.data.current as { kind?: string; columnId?: string } | undefined;
     if (data?.kind !== 'column') return;
     const over = e.over?.id as string | undefined;
-    if (!data.columnId || !over || over === data.columnId) return;
+    const active = data.columnId;
+    if (!active || !over || over === active) return;
     // Until the droppable rects are re-measured the same pair keeps firing; a
     // second identical event would swap the columns straight back.
-    if (lastSwap.current.active === data.columnId && lastSwap.current.over === over) return;
-    lastSwap.current = { active: data.columnId, over };
-    moveColumn(data.columnId, over);
+    if (!shouldMoveColumn(active, over, lastSwap.current)) return;
+    lastSwap.current = { active, over };
+    moveColumn(active, over);
   };
   const nameOf = (id: string) => libraries.find((l) => l.id === id)?.displayName ?? id;
 
@@ -338,21 +351,21 @@ export function SkillsBoard({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && setFilter('')}
-          placeholder="Filter skills by name or description…"
-          aria-label="Filter skills"
-          className="h-8 w-full max-w-md rounded-md border border-ink-600 bg-ink-950 px-3 text-[13px] text-paper placeholder:text-paper-mute focus:border-signal focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+          placeholder={t('skills.filter')}
+          aria-label={t('skills.filterLabel')}
+          className="h-9 w-full max-w-md rounded-full border border-ink-600 bg-ink-950 px-4 text-[13px] text-paper placeholder:text-paper-mute [&::-webkit-search-cancel-button]:hidden"
         />
         {filter && (
           <button
             type="button"
             onClick={() => setFilter('')}
-            aria-label="Clear skill filter"
-            className="shrink-0 rounded p-1 text-paper-mute hover:text-paper"
+            aria-label={t('skills.clearFilter')}
+            className="hit-target shrink-0 rounded-md p-1 text-paper-mute hover:bg-ink-800 hover:text-paper"
           >
             <X className="size-3.5" />
           </button>
         )}
-        <span className="ml-auto shrink-0 text-[12px] text-paper-mute" title="Skills matching the filter">
+        <span className="ml-auto shrink-0 text-[12px] tabular-nums text-paper-mute" title={t('skills.matches')}>
           {visible.length}/{skills.length}
         </span>
       </div>
@@ -370,7 +383,7 @@ export function SkillsBoard({
           setMovingColumn(null);
         }}
       >
-        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-5">
+        <div className="grid min-h-0 flex-1 auto-rows-[minmax(320px,1fr)] grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))] overflow-y-auto">
           {orderedLibraries.map((lib) => (
             <SkillColumn
               key={lib.id}
@@ -390,14 +403,14 @@ export function SkillsBoard({
         <DragOverlay dropAnimation={{ duration: 220, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }}>
           {movingColumn ? (
             <div className="pointer-events-none cursor-grabbing">
-              <div className="flex items-center gap-2.5 rounded-lg border border-signal/70 bg-ink-850 px-4 py-2.5 shadow-[0_24px_56px_-12px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center gap-2.5 rounded-lg border border-signal/70 bg-ink-850 px-4 py-2.5 shadow-[var(--shadow-drag)]">
                 {movingColumn === 'shared' ? (
                   <Blocks className="size-[18px] text-paper-mute" aria-hidden />
                 ) : (
                   <AgentIcon agent={movingColumn} size={18} />
                 )}
                 <span className="text-[14px] font-semibold">{libraries.find((l) => l.id === movingColumn)?.displayName}</span>
-                <span className="text-[11px] text-paper-mute">move</span>
+                <span className="text-[11px] text-paper-mute">{t('common.move')}</span>
               </div>
             </div>
           ) : dragged ? (

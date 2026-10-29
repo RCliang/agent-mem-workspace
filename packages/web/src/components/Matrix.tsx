@@ -1,16 +1,24 @@
 import { Check, ChevronDown, Link2, Plus, Table2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { AgentSummary, MatrixRow, MemoryItem, ShareStrategy } from '../api';
+import { useI18n } from '../i18n';
 import { agentColor, AgentIcon, Button, cx, EmptyState, useTildify } from '../ui';
 
-const STRATEGY_HELP: Record<ShareStrategy, string> = {
-  import: 'Add an @import line. Stays in sync, Claude Code only.',
-  symlink: 'Make the target file a symlink. Only when the target file does not exist.',
-  copy: 'Write a synced copy into a managed block. Works for every agent.',
-};
+const STRATEGY_LABEL = {
+  import: 'matrix.import',
+  symlink: 'matrix.symlink',
+  copy: 'matrix.copy',
+} as const;
+
+const STRATEGY_HELP = {
+  import: 'matrix.importHelp',
+  symlink: 'matrix.symlinkHelp',
+  copy: 'matrix.copyHelp',
+} as const;
 
 function StrategyMenu({ agent, onPick, onClose }: { agent: AgentSummary; onPick: (s?: ShareStrategy) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { t } = useI18n();
   useEffect(() => {
     const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -23,7 +31,7 @@ function StrategyMenu({ agent, onPick, onClose }: { agent: AgentSummary; onPick:
   }, [onClose]);
   const options: (ShareStrategy | undefined)[] = [undefined, ...(agent.capabilities.imports ? (['import'] as const) : []), 'symlink', 'copy'];
   return (
-    <div ref={ref} role="menu" className="absolute top-full left-1/2 z-20 mt-1 w-64 -translate-x-1/2 rounded-lg border border-ink-600 bg-ink-850 p-1 text-left shadow-[0_16px_40px_-10px_rgba(0,0,0,0.7)]">
+    <div ref={ref} role="menu" className="absolute top-full left-1/2 z-20 mt-1 w-64 -translate-x-1/2 rounded-lg border border-ink-600 bg-ink-850 p-1 text-left shadow-[var(--shadow-menu)]">
       {options.map((s) => (
         <button
           key={s ?? 'auto'}
@@ -31,10 +39,12 @@ function StrategyMenu({ agent, onPick, onClose }: { agent: AgentSummary; onPick:
           type="button"
           autoFocus={s === undefined}
           onClick={() => onPick(s)}
-          className="block w-full rounded-md px-2.5 py-1.5 text-left hover:bg-ink-700 focus:bg-ink-700 focus:outline-none"
+          className="block w-full rounded-md px-2.5 py-1.5 text-left hover:bg-ink-700 focus:bg-ink-700 active:bg-ink-600 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <span className="block text-[13px] font-medium">{s ? s[0]!.toUpperCase() + s.slice(1) : 'Best available'}</span>
-          <span className="block text-[11px] leading-snug text-paper-mute">{s ? STRATEGY_HELP[s] : `Picks import, symlink or copy for ${agent.displayName}.`}</span>
+          <span className="block text-[13px] font-medium">{t(s ? STRATEGY_LABEL[s] : 'matrix.bestAvailable')}</span>
+          <span className="block text-[11px] leading-snug text-paper-mute">
+            {s ? t(STRATEGY_HELP[s]) : t('matrix.bestAvailableHelp', { name: agent.displayName })}
+          </span>
         </button>
       ))}
     </div>
@@ -61,33 +71,34 @@ export function Matrix({
 }) {
   const [menu, setMenu] = useState<string | null>(null);
   const tildify = useTildify();
+  const { t } = useI18n();
 
   if (rows.length === 0) {
     const searching = !!query?.trim();
     return (
       <EmptyState
         icon={Table2}
-        title={searching ? `No memories match “${query!.trim()}”` : 'No memory files here yet'}
-        hint={searching ? 'The search filters this table by title, path and content.' : 'Create an instruction file from the board, then share it from here.'}
-        action={searching && onClearSearch ? <Button variant="ghost" onClick={onClearSearch}>Clear search</Button> : undefined}
+        title={searching ? t('matrix.noMatches', { query: query!.trim() }) : t('matrix.empty')}
+        hint={t(searching ? 'matrix.searchHint' : 'matrix.emptyHint')}
+        action={searching && onClearSearch ? <Button variant="ghost" onClick={onClearSearch}>{t('common.clearSearch')}</Button> : undefined}
       />
     );
   }
 
   return (
-    <div className="h-full overflow-auto p-5">
-      <p className="mb-4 max-w-[72ch] text-[13px] text-paper-dim">
-        Each row is a memory file, each column an agent. A filled check means the agent already reads the file. Click an empty cell to share the file with that agent; click a shared cell to stop sharing.
+    <div className="h-full overflow-auto p-3 sm:p-5">
+      <p className="mb-5 max-w-[72ch] text-[13px] text-paper-dim">
+        {t('matrix.intro')}
       </p>
-      <table className="w-full min-w-[720px] border-separate border-spacing-0 overflow-hidden rounded-xl border border-ink-700 text-[13px]">
+      <table className="w-full min-w-[560px] table-fixed border-separate border-spacing-0 font-sans text-[13px] sm:min-w-[720px]">
         <thead>
           <tr className="bg-ink-900">
-            <th scope="col" className="sticky left-0 z-10 border-b border-ink-700 bg-ink-900 px-4 py-2.5 text-left text-[12px] font-medium text-paper-mute">
-              Memory
+            <th scope="col" className="sticky left-0 z-20 w-40 border-r border-b border-ink-700 bg-ink-900 px-2 py-3 text-left text-[12px] font-medium text-paper-mute sm:w-72 sm:px-4">
+              {t('matrix.memory')}
             </th>
             {agents.map((a) => (
-              <th key={a.id} scope="col" className="w-36 border-b border-l border-ink-700 px-3 py-2.5 text-center text-[12px] font-medium">
-                <span className="inline-flex items-center gap-1.5">
+              <th key={a.id} scope="col" className="w-36 border-b border-ink-700 px-3 py-3 text-center align-middle text-[12px] font-medium text-paper-dim">
+                <span className="inline-flex max-w-full items-center justify-center gap-1.5 whitespace-nowrap">
                   <AgentIcon agent={a.id} size={14} /> {a.displayName}
                 </span>
               </th>
@@ -96,9 +107,9 @@ export function Matrix({
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.item.id} className="bg-ink-950 hover:bg-ink-900/70">
-              <th scope="row" className="sticky left-0 z-10 border-b border-ink-700/70 bg-ink-950 px-4 py-2.5 text-left font-normal shadow-[inset_-1px_0_0_0_var(--color-ink-700)]">
-                <button type="button" onClick={() => onOpen(r.item)} className="block max-w-full text-left hover:underline">
+            <tr key={r.item.id} className="group/row bg-ink-950 hover:bg-ink-900">
+              <th scope="row" className="sticky left-0 z-10 h-14 border-r border-b border-ink-700/70 bg-ink-950 px-2 py-2.5 text-left font-normal group-hover/row:bg-ink-900 sm:px-4">
+                <button type="button" onClick={() => onOpen(r.item)} className="block max-w-full text-left hover:underline active:text-paper-dim disabled:cursor-not-allowed disabled:opacity-40">
                   <span className="block truncate font-medium">{r.item.title}</span>
                 </button>
                 <span className="block truncate font-mono text-[11px] text-paper-mute" title={r.item.filePath}>
@@ -109,24 +120,24 @@ export function Matrix({
                 const agent = agents.find((a) => a.id === c.agent)!;
                 const key = `${r.item.id}:${c.agent}`;
                 return (
-                  <td key={c.agent} className="relative border-b border-l border-ink-700/70 px-3 py-2.5 text-center">
+                  <td key={c.agent} className="relative h-14 border-b border-ink-700/70 px-3 py-2 text-center align-middle">
                     {c.state === 'native' && (
-                      <span className="inline-flex size-6 items-center justify-center rounded-md" style={{ background: agentColor(c.agent) }} title={`${agent.displayName} reads this file natively`}>
+                      <span className="inline-flex size-7 items-center justify-center rounded-md" style={{ background: agentColor(c.agent) }} title={t('matrix.nativeTitle', { name: agent.displayName })}>
                         <Check className="size-4 text-ink-950" strokeWidth={3} />
-                        <span className="sr-only">reads natively</span>
+                        <span className="sr-only">{t('matrix.readsNatively')}</span>
                       </span>
                     )}
                     {c.state === 'shared' && (
                       <button
                         type="button"
                         onClick={() => onUnshare(c.shareId!)}
-                        title={`Shared via ${c.strategy}. Click to stop sharing.`}
-                        className="group inline-flex flex-col items-center gap-0.5"
+                        title={t('matrix.sharedVia', { strategy: t(STRATEGY_LABEL[c.strategy!]) })}
+                        className="group hit-target inline-flex min-h-8 flex-col items-center justify-center gap-0.5 rounded-md px-1.5 py-0.5 hover:bg-ink-800 active:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <span className="inline-flex size-6 items-center justify-center rounded-md border-2" style={{ borderColor: agentColor(c.agent) }}>
                           {c.strategy === 'symlink' ? <Link2 className="size-3.5" /> : <Check className="size-3.5" strokeWidth={3} style={{ color: agentColor(c.agent) }} />}
                         </span>
-                        <span className="text-[11px] text-paper-mute group-hover:text-danger">{c.strategy}</span>
+                        <span className="text-[11px] leading-4 text-paper-mute group-hover:text-danger">{t(STRATEGY_LABEL[c.strategy!])}</span>
                       </button>
                     )}
                     {c.state === 'available' && (
@@ -135,9 +146,9 @@ export function Matrix({
                           type="button"
                           aria-haspopup="menu"
                           aria-expanded={menu === key}
-                          aria-label={`Share with ${agent.displayName}`}
+                          aria-label={t('matrix.shareWith', { name: agent.displayName })}
                           onClick={() => setMenu(menu === key ? null : key)}
-                          className="inline-flex h-6 items-center gap-0.5 rounded-md border border-dashed border-ink-600 px-1.5 text-paper-mute hover:border-ink-500 hover:text-paper"
+                          className="hit-target inline-flex h-8 min-w-12 items-center justify-center gap-1 rounded-md border border-dashed border-ink-600 px-2 text-paper-mute hover:border-ink-500 hover:bg-ink-800 hover:text-paper active:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <Plus className="size-3.5" />
                           <ChevronDown className="size-3" />
@@ -161,11 +172,11 @@ export function Matrix({
           ))}
         </tbody>
       </table>
-      <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-[12px] text-paper-mute">
+      <dl className="mt-5 flex flex-wrap gap-x-6 gap-y-1 border-t border-ink-700/70 pt-4 text-[12px] text-paper-mute">
         {(['import', 'symlink', 'copy'] as const).map((s) => (
           <div key={s} className={cx('flex gap-1.5')}>
-            <dt className="font-medium text-paper-dim">{s}</dt>
-            <dd>{STRATEGY_HELP[s]}</dd>
+            <dt className="font-medium text-paper-dim">{t(STRATEGY_LABEL[s])}</dt>
+            <dd>{t(STRATEGY_HELP[s])}</dd>
           </div>
         ))}
       </dl>

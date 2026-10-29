@@ -38,7 +38,7 @@ export function ArmedAction({
       type="button"
       data-armed={phase === 'armed' ? '' : undefined}
       className={cx(
-        'inline-flex h-7 items-center rounded-md px-2 text-[12px] font-medium',
+        'hit-target inline-flex h-8 items-center rounded-md px-2.5 text-[12px] font-medium whitespace-nowrap',
         phase === 'armed' ? 'bg-danger/15 text-danger' : 'text-danger hover:bg-danger/10',
         className,
       )}

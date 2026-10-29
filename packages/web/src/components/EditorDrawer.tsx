@@ -4,6 +4,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { AlertTriangle, Share2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, api, type AgentSummary, type MemoryItem } from '../api';
+import { useI18n } from '../i18n';
 import { renderMarkdown } from '../markdown';
 import { AgentDot, Button, Kbd, Tag, cx, useTildify } from '../ui';
 import { ArmedAction } from './ArmedAction';
@@ -12,13 +13,13 @@ import { useToast } from './Toasts';
 
 const editorTheme = EditorView.theme(
   {
-    '&': { backgroundColor: 'var(--color-ink-950)', color: 'var(--color-paper)' },
-    '.cm-content': { caretColor: 'var(--color-signal)', padding: '14px 0' },
-    '.cm-cursor': { borderLeftColor: 'var(--color-signal)', borderLeftWidth: '2px' },
-    '.cm-gutters': { backgroundColor: 'var(--color-ink-950)', color: 'var(--color-ink-500)', border: 'none' },
-    '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.025)' },
-    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--color-paper-mute)' },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': { backgroundColor: 'rgba(232,176,75,0.28) !important' },
+    '&': { backgroundColor: 'var(--color-canvas)', color: 'var(--color-ink)' },
+    '.cm-content': { caretColor: 'var(--color-accent)', padding: '14px 0' },
+    '.cm-cursor': { borderLeftColor: 'var(--color-accent)', borderLeftWidth: '2px' },
+    '.cm-gutters': { backgroundColor: 'var(--color-canvas)', color: 'var(--color-faint)', border: 'none' },
+    '.cm-activeLine': { backgroundColor: 'var(--color-editor-line)' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--color-muted)' },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': { backgroundColor: 'var(--color-editor-selection) !important' },
     '.cm-line': { padding: '0 18px' },
   },
   { dark: true },
@@ -48,6 +49,7 @@ export function EditorDrawer({
   const [tab, setTab] = useState<'edit' | 'diff'>('edit');
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
+  const { t } = useI18n();
   const tildify = useTildify();
   const toast = useToast();
   const dirty = draft !== base.content;
@@ -75,8 +77,8 @@ export function EditorDrawer({
       setTab('edit');
       toast({
         tone: 'ok',
-        message: `Saved ${tildify(item.filePath)}`,
-        action: { label: 'Undo', run: () => void api.undo(res.backupId).then(onSaved) },
+        message: t('editor.savedPath', { path: tildify(item.filePath) }),
+        action: { label: t('common.undo'), run: () => void api.undo(res.backupId).then(onSaved) },
       });
       onSaved();
     } catch (e) {
@@ -90,7 +92,7 @@ export function EditorDrawer({
   async function remove() {
     try {
       await api.deleteMemory(item.id, project, base.hash);
-      toast({ tone: 'ok', message: `Deleted ${tildify(item.filePath)}` });
+      toast({ tone: 'ok', message: t('editor.deletedPath', { path: tildify(item.filePath) }) });
       onSaved();
       onClose();
     } catch (e) {
@@ -117,10 +119,10 @@ export function EditorDrawer({
 
   return (
     <aside
-      aria-label={`Edit ${item.title}`}
+      aria-label={t('editor.label', { title: item.title })}
       className={cx('flex shrink-0 flex-col border-l border-ink-700 bg-ink-900 [animation:drawer-in_280ms_var(--ease-out-expo)]', className)}
     >
-      <header className="border-b border-ink-700 px-5 pt-4 pb-3">
+      <header className="border-b border-ink-700 px-5 pt-4 pb-4">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -131,32 +133,32 @@ export function EditorDrawer({
               {tildify(item.filePath)}
             </p>
           </div>
-          <button type="button" aria-label="Close editor" onClick={onClose} className="rounded p-1 text-paper-mute hover:bg-ink-800 hover:text-paper">
+          <button type="button" aria-label={t('editor.close')} onClick={onClose} className="hit-target rounded-md p-1.5 text-paper-mute hover:bg-ink-800 hover:text-paper">
             <X className="size-4" />
           </button>
         </div>
-        <div className="mt-3 flex items-center gap-1">
-          {(['edit', 'diff'] as const).map((t) => (
+        <div className="mt-4 flex flex-wrap items-center gap-1">
+          {(['edit', 'diff'] as const).map((tabName) => (
             <button
-              key={t}
+              key={tabName}
               type="button"
-              onClick={() => setTab(t)}
-              className={cx('rounded-md px-2.5 py-1 text-[12px] font-medium', tab === t ? 'bg-ink-700 text-paper' : 'text-paper-dim hover:text-paper')}
+              onClick={() => setTab(tabName)}
+              className={cx('hit-target rounded-md px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap', tab === tabName ? 'bg-ink-800 text-paper' : 'text-paper-dim hover:bg-ink-850 hover:text-paper')}
             >
-              {t === 'edit' ? 'Edit' : 'Review changes'}
-              {t === 'diff' && dirty && <span className="ml-1.5 inline-block size-1.5 rounded-full bg-signal align-middle" />}
+              {tabName === 'edit' ? t('editor.edit') : t('editor.review')}
+              {tabName === 'diff' && dirty && <span className="ml-1.5 inline-block size-1.5 rounded-full bg-signal align-middle" />}
             </button>
           ))}
           {shareTargets.length > 0 && (
-            <div className="ml-auto flex items-center gap-1.5">
+            <div className="ml-auto flex min-w-0 flex-wrap items-center gap-1.5">
               <Share2 className="size-3.5 text-paper-mute" />
-              <span className="text-[12px] text-paper-mute">Share with</span>
+              <span className="text-[12px] text-paper-mute">{t('editor.shareWith')}</span>
               {shareTargets.map((a) => (
                 <button
                   key={a.id}
                   type="button"
                   onClick={() => onShare(item, a.id)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2 py-0.5 text-[12px] text-paper-dim hover:border-ink-500 hover:text-paper"
+                  className="hit-target inline-flex min-h-7 items-center gap-1.5 rounded-md border border-ink-600 px-2 py-0.5 text-[12px] whitespace-nowrap text-paper-dim hover:border-ink-500 hover:text-paper"
                 >
                   <AgentDot agent={a.id} size={7} /> {a.displayName}
                 </button>
@@ -169,7 +171,7 @@ export function EditorDrawer({
       {conflict && (
         <div className="flex items-start gap-2.5 border-b border-warn/30 bg-warn/8 px-5 py-2.5 text-[13px]">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" />
-          <p className="flex-1 text-paper">This file changed on disk after you started editing. Keep your version or load the one on disk.</p>
+          <p className="flex-1 text-paper">{t('editor.conflict')}</p>
           <Button
             variant="quiet"
             className="h-7"
@@ -179,10 +181,10 @@ export function EditorDrawer({
               setConflict(false);
             }}
           >
-            Load disk version
+            {t('editor.loadDisk')}
           </Button>
           <Button variant="danger" className="h-7" onClick={() => void save(true)}>
-            Overwrite
+            {t('editor.overwrite')}
           </Button>
         </div>
       )}
@@ -206,24 +208,27 @@ export function EditorDrawer({
       <footer className="flex items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
         {item.kind === 'instructions' && (
           <ArmedAction
-            label="Delete"
+            label={t('common.delete')}
             armedLabel={
               item.alsoReadBy.length === 0
-                ? 'Delete this file?'
-                : `Delete? Also read by ${item.alsoReadBy.map((id) => agents.find((a) => a.id === id)?.displayName ?? id).join(', ')}`
+                ? t('board.deleteFile')
+                : t('board.deleteShared', { names: item.alsoReadBy.map((id) => agents.find((a) => a.id === id)?.displayName ?? id).join(', ') })
             }
             onConfirm={() => void remove()}
           />
         )}
-        <Tag>{item.scope === 'local' ? 'private' : item.scope}</Tag>
-        <span className="flex-1 text-[12px] text-paper-mute">
-          {dirty ? 'Unsaved changes' : 'Saved'} · <Kbd>Ctrl</Kbd> <Kbd>S</Kbd> to save
+        <Tag>{item.scope === 'local' ? t('common.private') : t(item.scope === 'global' ? 'common.global' : 'common.project')}</Tag>
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-paper-mute">
+          <span>{dirty ? t('editor.unsaved') : t('editor.saved')}</span>
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <Kbd>Ctrl</Kbd> <Kbd>S</Kbd> {t('editor.saveHint')}
+          </span>
         </span>
         <Button variant="quiet" disabled={draft === base.content} onClick={() => setDraft(base.content)}>
-          Revert
+          {t('editor.revert')}
         </Button>
         <Button variant="primary" disabled={!dirty || saving} onClick={() => void save()}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? t('editor.saving') : t('common.save')}
         </Button>
       </footer>
     </aside>

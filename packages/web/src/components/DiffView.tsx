@@ -1,5 +1,6 @@
 import { diffLines } from 'diff';
 import { useMemo } from 'react';
+import { useI18n } from '../i18n';
 import { cx } from '../ui';
 
 interface Row {
@@ -35,8 +36,9 @@ function buildRows(before: string, after: string): Row[] {
 
 export function DiffView({ before, after, className }: { before: string; after: string; className?: string }) {
   const rows = useMemo(() => buildRows(before, after), [before, after]);
+  const { t } = useI18n();
   const changed = rows.some((r) => r.kind === 'add' || r.kind === 'del');
-  if (!changed) return <p className="px-4 py-3 text-[13px] text-paper-mute">No changes.</p>;
+  if (!changed) return <p className="px-4 py-3 text-[13px] text-paper-mute">{t('diff.noChanges')}</p>;
   return (
     <div className={cx('overflow-auto font-mono text-[12.5px] leading-[1.6]', className)}>
       <table className="w-full min-w-max border-collapse">
@@ -44,8 +46,8 @@ export function DiffView({ before, after, className }: { before: string; after: 
           {rows.map((r, i) =>
             r.kind === 'gap' ? (
               <tr key={i}>
-                <td colSpan={3} className="bg-ink-800/60 px-3 py-0.5 text-[11px] text-paper-mute">
-                  unchanged lines
+                <td colSpan={3} className="bg-ink-800/60 px-3 py-0.5 font-sans text-[12px] text-paper-mute">
+                  {t('diff.unchanged')}
                 </td>
               </tr>
             ) : (

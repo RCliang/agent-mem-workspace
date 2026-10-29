@@ -5,6 +5,7 @@ import { claudeCodeAdapter } from './adapters/claude-code.js';
 import { codexAdapter } from './adapters/codex.js';
 import { cursorAdapter } from './adapters/cursor.js';
 import { declarativeAdapter, type DeclarativeAgentSpec } from './adapters/declarative.js';
+import { deepseekHarnessAdapter } from './adapters/deepseek-harness.js';
 import { geminiAdapter } from './adapters/gemini.js';
 import { opencodeAdapter } from './adapters/opencode.js';
 import { piAdapter } from './adapters/pi.js';
@@ -18,6 +19,8 @@ import type { AgentAdapter, AgentId, MemoryItem, ProjectInfo } from './types.js'
 export interface HubConfig {
   /** Projects added manually in addition to the ones discovered from session logs. */
   projects?: string[];
+  /** Projects removed in the UI; discovered ones reappear unless listed here. */
+  hiddenProjects?: string[];
   agents?: DeclarativeAgentSpec[];
   /** ESM modules whose default export is `(ctx) => AgentAdapter`. */
   plugins?: string[];
@@ -36,6 +39,7 @@ const AGENT_ALIASES: Record<string, AgentId> = {
   'pi-agent': 'pi',
   'gemini-cli': 'gemini',
   oc: 'opencode',
+  dsh: 'deepseek-harness',
 };
 
 function builtinAdapters(ctx: Context): AgentAdapter[] {
@@ -48,6 +52,7 @@ function builtinAdapters(ctx: Context): AgentAdapter[] {
     opencodeAdapter(ctx),
     zcodeAdapter(ctx),
     qoderAdapter(ctx),
+    deepseekHarnessAdapter(ctx),
   ];
 }
 
@@ -97,11 +102,15 @@ export class Hub {
         }
       }
     }
-    for (const p of (await readConfig(this.ctx)).projects ?? []) {
+    const config = await readConfig(this.ctx);
+    const hidden = new Set((config.hiddenProjects ?? []).map((p) => path.resolve(expandHome(this.ctx, p))));
+    for (const p of config.projects ?? []) {
       const abs = expandHome(this.ctx, p);
       if (!merged.has(abs)) merged.set(abs, { path: abs, name: path.basename(abs), agents: [], lastActivityMs: 0 });
     }
-    return [...merged.values()].sort((a, b) => b.lastActivityMs - a.lastActivityMs || a.name.localeCompare(b.name));
+    return [...merged.values()]
+      .filter((p) => !hidden.has(path.resolve(p.path)))
+      .sort((a, b) => b.lastActivityMs - a.lastActivityMs || a.name.localeCompare(b.name));
   }
 
   async addProject(projectPath: string): Promise<void> {
@@ -110,6 +119,15 @@ export class Hub {
     if (!st?.isDirectory()) throw new Error(`Not a directory: ${abs}`);
     const config = await readConfig(this.ctx);
     config.projects = [...new Set([...(config.projects ?? []), abs])];
+    config.hiddenProjects = (config.hiddenProjects ?? []).filter((p) => path.resolve(expandHome(this.ctx, p)) !== abs);
+    await writeState(this.ctx, 'config.json', config);
+  }
+
+  async removeProject(projectPath: string): Promise<void> {
+    const abs = path.resolve(expandHome(this.ctx, projectPath));
+    const config = await readConfig(this.ctx);
+    config.projects = (config.projects ?? []).filter((p) => path.resolve(expandHome(this.ctx, p)) !== abs);
+    config.hiddenProjects = [...new Set([...(config.hiddenProjects ?? []), abs])];
     await writeState(this.ctx, 'config.json', config);
   }
 

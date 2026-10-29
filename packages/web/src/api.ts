@@ -50,6 +50,8 @@ export const api = {
   agents: () => request<AgentSummary[]>('GET', '/api/agents'),
   projects: () => request<ProjectInfo[]>('GET', '/api/projects'),
   addProject: (path: string) => request<ProjectInfo[]>('POST', '/api/projects', { path }),
+  pickProject: () => request<{ path: string | null; projects: ProjectInfo[] }>('POST', '/api/projects/pick'),
+  removeProject: (path: string) => request<ProjectInfo[]>('DELETE', '/api/projects', { path }),
   memories: (project: string | null) => request<MemoryItem[]>('GET', `/api/memories${q(project)}`),
   saveMemory: (id: string, project: string | null, content: string, expectedHash: string) =>
     request<{ hash: string; backupId: string }>('PUT', `/api/memory/${id}${q(project)}`, { content, expectedHash }),

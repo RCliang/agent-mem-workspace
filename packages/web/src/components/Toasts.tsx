@@ -1,5 +1,6 @@
 import { CircleAlert, CircleCheck, X } from 'lucide-react';
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { useI18n } from '../i18n';
 import { cx } from '../ui';
 
 interface Toast {
@@ -17,6 +18,7 @@ export const useToast = () => useContext(ToastContext);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const { t: translate } = useI18n();
   const dismiss = useCallback((id: number) => setToasts((ts) => ts.filter((t) => t.id !== id)), []);
   const push = useCallback<Push>(
     (t) => {
@@ -29,12 +31,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2" role="status" aria-live="polite">
+      <div className="pointer-events-none fixed bottom-5 left-1/2 z-50 flex w-[min(560px,calc(100%-32px))] -translate-x-1/2 flex-col items-stretch gap-2" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={cx(
-              'pointer-events-auto flex max-w-[560px] items-start gap-2.5 rounded-lg border bg-ink-850 px-3.5 py-2.5 text-[13px] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.6)] [animation:toast-in_240ms_var(--ease-out-expo)]',
+              'pointer-events-auto flex items-start gap-2.5 rounded-lg border bg-ink-850 px-3.5 py-2.5 text-[13px] shadow-[var(--shadow-toast)] [animation:toast-in_240ms_var(--ease-out-expo)]',
               t.tone === 'ok' ? 'border-ink-600' : 'border-danger/50',
             )}
           >
@@ -52,7 +54,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 {t.action.label}
               </button>
             )}
-            <button type="button" aria-label="Dismiss" className="shrink-0 text-paper-mute hover:text-paper" onClick={() => dismiss(t.id)}>
+            <button type="button" aria-label={translate('toast.dismiss')} className="shrink-0 text-paper-mute hover:text-paper" onClick={() => dismiss(t.id)}>
               <X className="size-4" />
             </button>
           </div>

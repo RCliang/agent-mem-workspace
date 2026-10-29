@@ -1,5 +1,5 @@
-import { History as HistoryIcon, LayoutGrid, Menu, Puzzle, RefreshCw, Search, Table2, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { History as HistoryIcon, LayoutGrid, Menu, Moon, Puzzle, RefreshCw, Search, Sun, Table2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, subscribe, type AgentSummary, type BackupEntry, type Info, type MatrixRow, type MemoryItem, type ProjectInfo, type ShareStrategy, type SkillItem, type SkillLibrary } from './api';
 import { Board } from './components/Board';
 import { EditorDrawer } from './components/EditorDrawer';
@@ -11,15 +11,54 @@ import { Sidebar } from './components/Sidebar';
 import { SkillsBoard } from './components/SkillsBoard';
 import { SkillsDrawer } from './components/SkillsDrawer';
 import { useToast } from './components/Toasts';
+import { useI18n, type MessageKey } from './i18n';
 import { Button, cx, InfoContext } from './ui';
 
 type View = 'board' | 'skills' | 'matrix' | 'history';
+type Theme = 'dark' | 'light';
 
-const VIEWS: { id: View; label: string; short: string; icon: typeof LayoutGrid }[] = [
-  { id: 'board', label: 'Board', short: 'Board', icon: LayoutGrid },
-  { id: 'skills', label: 'Skills', short: 'Skills', icon: Puzzle },
-  { id: 'matrix', label: 'Share matrix', short: 'Matrix', icon: Table2 },
-  { id: 'history', label: 'History', short: 'History', icon: HistoryIcon },
+function SlidingToggle({
+  label,
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string; icon?: typeof Sun }[];
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <div role="group" aria-label={label} className={cx('relative grid h-8 shrink-0 grid-cols-2 rounded-full border border-ink-600 bg-ink-900 p-0.5', className)}>
+      <span
+        aria-hidden
+        className="absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%_-_0.25rem)] rounded-full bg-ink-700 transition-transform duration-150"
+        style={{ transform: value === options[1]?.value ? 'translateX(calc(100% + 0.25rem))' : 'translateX(0)' }}
+      />
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-label={option.label}
+          aria-pressed={value === option.value}
+          title={option.label}
+          onClick={() => onChange(option.value)}
+          className={cx('relative z-10 flex items-center justify-center rounded-full text-[11px] font-medium whitespace-nowrap', value === option.value ? 'text-paper' : 'text-paper-mute hover:text-paper')}
+        >
+          {option.icon ? <option.icon className="size-3.5" /> : option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const VIEWS: { id: View; label: MessageKey; icon: typeof LayoutGrid }[] = [
+  { id: 'board', label: 'app.board', icon: LayoutGrid },
+  { id: 'skills', label: 'app.skills', icon: Puzzle },
+  { id: 'matrix', label: 'app.matrix', icon: Table2 },
+  { id: 'history', label: 'app.history', icon: HistoryIcon },
 ];
 
 const STORAGE_KEY = 'agent-mem:project';
@@ -36,6 +75,14 @@ function readHiddenAgents(): string[] {
 }
 
 export function App() {
+  const { locale, setLocale, t } = useI18n();
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      return localStorage.getItem('agent-mem:theme') === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
   const [info, setInfo] = useState<Info>({ home: '', dataDir: '', llm: false });
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
@@ -54,9 +101,17 @@ export function App() {
   const [query, setQuery] = useState('');
   const [mobileSearch, setMobileSearch] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const overlaySearchRef = useRef<HTMLInputElement>(null);
+  const sidebarTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileSidebarRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('agent-mem:theme', theme);
+  }, [theme]);
 
   const clearSearch = useCallback(() => setQuery(''), []);
 
@@ -67,6 +122,33 @@ export function App() {
   useEffect(() => {
     if (mobileSearch) overlaySearchRef.current?.focus();
   }, [mobileSearch]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const panel = mobileSidebarRef.current;
+    const trigger = sidebarTriggerRef.current;
+    const focusable = () => [...(panel?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? [])].filter((el) => el.getClientRects().length > 0);
+    focusable()[0]?.focus();
+    const trapFocus = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      document.removeEventListener('keydown', trapFocus);
+      trigger?.focus();
+    };
+  }, [sidebarOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -224,128 +306,153 @@ export function App() {
   async function syncNow() {
     try {
       const res = await api.sync();
-      toast({ tone: 'ok', message: res.updated.length ? `Refreshed ${res.updated.length} synced cop${res.updated.length === 1 ? 'y' : 'ies'}.` : 'All shared copies are up to date.' });
+      toast({ tone: 'ok', message: res.updated.length ? t('app.synced', { count: res.updated.length, suffix: res.updated.length === 1 ? 'y' : 'ies' }) : t('app.syncCurrent') });
       await reload();
     } catch (e) {
       toast({ tone: 'error', message: (e as Error).message });
     }
   }
 
+  const viewNavigation: ReactNode = (
+    <nav aria-label={t('app.views')}>
+      {VIEWS.map((v) => (
+        <button
+          key={v.id}
+          type="button"
+          aria-current={view === v.id ? 'page' : undefined}
+          onClick={() => setView(v.id)}
+          title={t(v.label)}
+          className={cx(
+            'hit-target flex h-10 w-full items-center gap-2.5 border-b border-ink-700/70 px-2 text-[13px] font-medium whitespace-nowrap transition-colors active:translate-y-px',
+            view === v.id ? 'text-paper' : 'text-paper-mute hover:text-paper',
+          )}
+        >
+          <v.icon className={cx('size-4 shrink-0', view === v.id ? 'text-signal' : 'text-paper-mute')} />
+          {t(v.label)}
+        </button>
+      ))}
+    </nav>
+  );
+
   return (
     <InfoContext.Provider value={info}>
       <div className="flex h-full flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-ink-700 bg-ink-900 px-4">
-          <button
-            type="button"
-            aria-label="Open sidebar"
-            onClick={() => setSidebarOpen(true)}
-            className="rounded-md p-1.5 text-paper-dim hover:bg-ink-800 hover:text-paper lg:hidden"
-          >
-            <Menu className="size-4" />
-          </button>
-          <div className="flex w-[196px] items-center gap-2 lg:w-[232px]">
-            <img src="/favicon.svg" alt="" className="size-6" />
-            <span className="text-[15px] font-semibold tracking-tight">agent-mem</span>
-          </div>
-          <label className="min-w-0 flex-1 lg:hidden">
-            <span className="sr-only">Project</span>
-            <select
-              className="h-8 w-full max-w-56 truncate rounded-md border border-ink-600 bg-ink-950 px-2 text-[13px]"
-              value={project ?? ''}
-              onChange={(e) => {
-                setProject(e.target.value || null);
-                setOpenId(null);
-                setOpenSkillId(null);
-              }}
+        <header inert={sidebarOpen} className="shrink-0 border-b border-ink-700 bg-ink-950">
+          <div className="flex h-16 items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:px-5">
+            <button
+              ref={sidebarTriggerRef}
+              type="button"
+              aria-label={t('app.openSidebar')}
+              onClick={() => setSidebarOpen(true)}
+              className="hit-target rounded-md p-1.5 text-paper-dim hover:bg-ink-800 hover:text-paper lg:hidden"
             >
-              <option value="">Global memory</option>
-              {projects.map((p) => (
-                <option key={p.path} value={p.path}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="hidden min-w-0 flex-1 lg:block">
-            <p className="truncate text-[14px] font-medium">{project === null ? 'Global memory' : (current?.name ?? '')}</p>
-          </div>
-          <div className="relative ml-auto hidden w-full max-w-xs md:block lg:ml-0">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-paper-mute" aria-hidden />
-            <input
-              ref={searchRef}
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search memories…"
-              aria-label="Search memories by title, path or content"
-              className="h-8 w-full rounded-md border border-ink-600 bg-ink-950 pr-14 pl-8 text-[13px] text-paper placeholder:text-paper-mute focus:border-signal focus:outline-none [&::-webkit-search-cancel-button]:hidden"
-            />
-            {query ? (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                aria-label="Clear search"
-                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-paper-mute hover:text-paper"
+              <Menu className="size-4" />
+            </button>
+            <div className="flex shrink-0 items-center gap-2.5 md:hidden">
+              <img src="/favicon.svg" alt="" className="size-6" />
+              <span className="hidden text-[15px] font-semibold tracking-tight whitespace-nowrap sm:inline">agent-mem</span>
+            </div>
+            <label className="hidden min-w-0 flex-1 md:flex lg:hidden">
+              <span className="sr-only">{t('app.project')}</span>
+              <select
+                className="h-9 w-full max-w-56 truncate rounded-full border border-ink-600 bg-ink-900 px-3 text-[13px]"
+                value={project ?? ''}
+                onChange={(e) => {
+                  setProject(e.target.value || null);
+                  setOpenId(null);
+                  setOpenSkillId(null);
+                }}
               >
-                <X className="size-3.5" />
-              </button>
-            ) : (
-              <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border border-ink-600 bg-ink-800 px-1 font-mono text-[11px] text-paper-mute">/</kbd>
+                <option value="">{t('app.global')}</option>
+                {projects.map((p) => (
+                  <option key={p.path} value={p.path}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="hidden min-w-0 flex-1 lg:block">
+              <p className="truncate text-[14px] font-medium">{project === null ? t('app.global') : (current?.name ?? '')}</p>
+            </div>
+            <div className="relative ml-auto hidden w-full max-w-xs md:block lg:ml-0">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-paper-mute" aria-hidden />
+              <input
+                ref={searchRef}
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('app.search')}
+                aria-label={t('app.searchLabel')}
+                className="h-9 w-full rounded-full border border-ink-600 bg-ink-900 pr-14 pl-9 text-[13px] text-paper placeholder:text-paper-mute [&::-webkit-search-cancel-button]:hidden"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  aria-label={t('app.searchClear')}
+                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-paper-mute hover:text-paper"
+                >
+                  <X className="size-3.5" />
+                </button>
+              ) : (
+                <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border border-ink-600 bg-ink-800 px-1 font-mono text-[11px] text-paper-mute">/</kbd>
+              )}
+            </div>
+            {query.trim() && view !== 'history' && (
+              <span className="shrink-0 text-[12px] text-paper-mute" title={t(view === 'skills' ? 'app.skillMatches' : 'app.memoryMatches')}>
+                {view === 'skills' ? `${visibleSkills.length}/${skillData.skills.length}` : `${visibleMemories.length}/${memories.length}`}
+              </span>
             )}
-          </div>
-          {query.trim() && (
-            <span className="shrink-0 text-[12px] text-paper-mute" title="Memories matching the search">
-              {visibleMemories.length}/{memories.length}
+            <button
+              type="button"
+              aria-label={t('app.searchButton')}
+              aria-expanded={mobileSearch}
+              onClick={() => setMobileSearch((v) => !v)}
+              className="hit-target rounded-md p-1.5 text-paper-dim hover:bg-ink-800 hover:text-paper md:hidden"
+            >
+              <Search className="size-4" />
+            </button>
+            <SlidingToggle
+              label={t('theme.toggle')}
+              value={theme}
+              onChange={(value) => setTheme(value as Theme)}
+              options={[
+                { value: 'dark', label: t('theme.dark'), icon: Moon },
+                { value: 'light', label: t('theme.light'), icon: Sun },
+              ]}
+              className="ml-auto w-14 md:ml-0"
+            />
+            <SlidingToggle
+              label={t('language.toggle')}
+              value={locale}
+              onChange={(value) => setLocale(value as 'en' | 'zh')}
+              options={[
+                { value: 'en', label: 'EN' },
+                { value: 'zh', label: '中' },
+              ]}
+              className="w-[4.25rem]"
+            />
+            <Button variant="quiet" aria-label={t('app.syncLabel')} onClick={syncNow} title={t('app.syncTitle')}>
+              <RefreshCw className="size-3.5" /> <span className="hidden md:inline">{t('app.sync')}</span>
+            </Button>
+            <span className="hidden shrink-0 items-center gap-1.5 text-[12px] whitespace-nowrap text-paper-mute md:flex" title={t(live ? 'app.liveTitle' : 'app.offlineTitle')}>
+              <span className={cx('size-2 rounded-full', live ? 'bg-ok' : 'bg-danger')} />
+              <span className="hidden sm:inline">{t(live ? 'app.live' : 'app.offline')}</span>
             </span>
-          )}
-          <nav className="flex items-center gap-1 rounded-lg bg-ink-950 p-1" aria-label="Views">
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                aria-current={view === v.id ? 'page' : undefined}
-                onClick={() => setView(v.id)}
-                title={v.label}
-                className={cx(
-                  'inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[13px] font-medium transition-colors',
-                  view === v.id ? 'bg-ink-700 text-paper' : 'text-paper-dim hover:text-paper',
-                )}
-              >
-                <v.icon className="size-3.5" />
-                <span className="hidden sm:inline xl:hidden">{v.short}</span>
-                <span className="hidden xl:inline">{v.label}</span>
-              </button>
-            ))}
-          </nav>
-          <button
-            type="button"
-            aria-label="Search"
-            aria-expanded={mobileSearch}
-            onClick={() => setMobileSearch((v) => !v)}
-            className="rounded-md p-1.5 text-paper-dim hover:bg-ink-800 hover:text-paper md:hidden"
-          >
-            <Search className="size-4" />
-          </button>
-          <Button variant="quiet" onClick={syncNow} title="Re-copy shared memories whose source changed">
-            <RefreshCw className="size-3.5" /> Sync
-          </Button>
-          <span className="flex items-center gap-1.5 text-[12px] text-paper-mute" title={live ? 'Watching memory files for changes' : 'Not connected to the agent-mem server'}>
-            <span className={cx('size-2 rounded-full', live ? 'bg-ok [animation:pulse-dot_2.4s_ease-in-out_infinite]' : 'bg-danger')} />
-            {live ? 'Live' : 'Offline'}
-          </span>
+          </div>
         </header>
 
         {mobileSearch && (
-          <div className="flex items-center gap-2 border-b border-ink-700 bg-ink-900 px-4 py-2 md:hidden">
+          <div inert={sidebarOpen} className="flex items-center gap-2 border-b border-ink-700 bg-ink-900 px-4 py-2 md:hidden">
             <Search className="size-3.5 shrink-0 text-paper-mute" aria-hidden />
             <input
               ref={overlaySearchRef}
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search memories and skills…"
-              aria-label="Search memories and skills"
-              className="h-8 w-full rounded-md border border-ink-600 bg-ink-950 px-2.5 text-[13px] text-paper placeholder:text-paper-mute focus:border-signal focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+              placeholder={t('app.searchAll')}
+              aria-label={t('app.searchAllLabel')}
+              className="h-9 w-full rounded-full border border-ink-600 bg-ink-900 px-3 text-[13px] text-paper placeholder:text-paper-mute [&::-webkit-search-cancel-button]:hidden"
             />
             <button
               type="button"
@@ -353,7 +460,7 @@ export function App() {
                 setQuery('');
                 setMobileSearch(false);
               }}
-              aria-label="Close search"
+              aria-label={t('app.searchClose')}
               className="rounded p-1 text-paper-mute hover:text-paper"
             >
               <X className="size-4" />
@@ -362,11 +469,12 @@ export function App() {
         )}
 
         {sidebarOpen && (
-          <div className="fixed inset-0 z-30 lg:hidden">
-            <div className="absolute inset-0 bg-black/55" onClick={() => setSidebarOpen(false)} aria-hidden />
+          <div ref={mobileSidebarRef} role="dialog" aria-modal="true" aria-label={t('app.workspaceNavigation')} className="fixed inset-0 z-30 lg:hidden">
+            <div className="absolute inset-0 bg-backdrop" onClick={() => setSidebarOpen(false)} aria-hidden />
             <aside className="absolute inset-y-0 left-0 flex w-[280px] shadow-2xl">
               <Sidebar
                 className="flex w-full"
+                navigation={viewNavigation}
                 projects={projects}
                 selected={project ?? null}
                 onSelect={(p) => {
@@ -385,9 +493,12 @@ export function App() {
           </div>
         )}
 
-        <div className="relative flex min-h-0 flex-1">
+        <div inert={sidebarOpen} className="relative flex min-h-0 flex-1">
           <Sidebar
             className="hidden lg:flex"
+            navigation={viewNavigation}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
             projects={projects}
             selected={project ?? null}
             onSelect={(p) => {
@@ -402,8 +513,8 @@ export function App() {
             onShowAllAgents={showAllAgents}
           />
           <main className="min-w-0 flex-1 overflow-hidden">
-            {project === undefined && !loadError && <div className="m-5 h-40 animate-pulse rounded-xl bg-ink-800" />}
-            {loadError && <p className="m-5 rounded-lg border border-danger/40 bg-danger/8 px-4 py-3 text-[13px] text-danger">Could not load data: {loadError}</p>}
+            {project === undefined && !loadError && <div className="m-4 h-40 animate-pulse rounded-lg bg-ink-900" />}
+            {loadError && <p className="m-4 border-l-2 border-danger bg-danger/8 px-4 py-3 text-[13px] text-danger">{t('app.loadError', { message: loadError })}</p>}
             {project !== undefined && view === 'board' && (
               <Board
                 agents={visibleAgents}
@@ -440,7 +551,7 @@ export function App() {
                 onUndo={(id) =>
                   void api
                     .undo(id)
-                    .then((e) => toast({ tone: 'ok', message: `Restored ${e.filePath}` }))
+                    .then((e) => toast({ tone: 'ok', message: t('app.restored', { path: e.filePath }) }))
                     .catch((e: Error) => toast({ tone: 'error', message: e.message }))
                     .finally(reload)
                 }

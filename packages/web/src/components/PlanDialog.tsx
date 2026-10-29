@@ -2,6 +2,7 @@ import type { TransferRender } from '@agent-mem/core';
 import { ArrowRightLeft, Copy, FileDiff, FilePlus2, FolderPlus, Link2, ShieldAlert, Sparkles, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, type Plan } from '../api';
+import { useI18n } from '../i18n';
 import { Button, Tag, cx, useTildify } from '../ui';
 import { DiffView } from './DiffView';
 import { useToast } from './Toasts';
@@ -19,6 +20,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
   const [loading, setLoading] = useState(false);
   const [move, setMove] = useState(false);
   const [active, setActive] = useState(0);
+  const { t } = useI18n();
   const tildify = useTildify();
   const toast = useToast();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -65,10 +67,10 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
       const res = await api.apply(plan);
       toast({
         tone: 'ok',
-        message: `${plan.title} - wrote ${res.files.length} file${res.files.length === 1 ? '' : 's'}.`,
+        message: t('plan.wrote', { count: res.files.length, suffix: res.files.length === 1 ? '' : 's', title: plan.title }),
         action: res.backups.length
           ? {
-              label: 'Undo',
+              label: t('common.undo'),
               run: async () => {
                 for (const b of res.backups) await api.undo(b.id).catch(() => {});
                 onApplied();
@@ -79,7 +81,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
       onApplied();
       onClose();
     } catch (e) {
-      setError(e instanceof ApiError && e.isConflict ? `${e.message}. Close and try again to preview against the latest version.` : (e as Error).message);
+      setError(e instanceof ApiError && e.isConflict ? `${e.message}. ${t('plan.conflictRetry')}` : (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -92,11 +94,11 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
       ref={dialogRef}
       onClose={onClose}
       onClick={(e) => e.target === dialogRef.current && onClose()}
-      className="m-auto flex max-h-[86vh] w-[min(920px,94vw)] flex-col overflow-hidden rounded-xl border border-ink-600 bg-ink-900 p-0 text-paper shadow-[0_24px_64px_-12px_rgba(0,0,0,0.75)] backdrop:bg-black/55 [animation:dialog-in_260ms_var(--ease-out-expo)] open:flex"
+      className="m-auto flex max-h-[86dvh] w-[min(920px,94vw)] flex-col overflow-hidden rounded-lg bg-[var(--glass)] p-0 text-paper shadow-[var(--glass-hi),var(--shadow-modal)] backdrop:bg-backdrop backdrop-blur-[var(--glass-blur)] [animation:dialog-in_260ms_var(--ease-out-expo)] open:flex"
     >
       <header className="flex items-start gap-3 border-b border-ink-700 px-5 pt-4 pb-3.5">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[15px] font-semibold text-balance">{plan?.title ?? (error ? 'Cannot prepare this change' : 'Preparing preview...')}</h2>
+          <h2 className="text-[15px] font-semibold text-balance">{plan?.title ?? (error ? t('plan.cannotPrepare') : t('plan.preparing'))}</h2>
           {plan && (
             <ul className="mt-1.5 space-y-0.5 text-[13px] text-paper-dim">
               {plan.notes.map((n) => (
@@ -105,7 +107,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
             </ul>
           )}
         </div>
-        <button type="button" aria-label="Close" className="rounded p-1 text-paper-mute hover:bg-ink-800 hover:text-paper" onClick={onClose}>
+        <button type="button" aria-label={t('common.close')} className="hit-target rounded-md p-1.5 text-paper-mute hover:bg-ink-800 hover:text-paper" onClick={onClose}>
           <X className="size-4" />
         </button>
       </header>
@@ -114,21 +116,21 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
         <div className="flex items-start gap-2 border-b border-ink-700 bg-warn/8 px-5 py-2.5 text-[13px] text-warn">
           <ShieldAlert className="mt-0.5 size-4 shrink-0" />
           <span>
-            Possible secrets: {plan.findings.map((f) => `${f.count} ${f.type}`).join(', ')}.{' '}
-            {plan.kind === 'handoff' ? 'They are masked in the handoff.' : 'Review the diff before applying.'}
+            {t('plan.possibleSecrets', { findings: plan.findings.map((f) => `${f.count} ${f.type}`).join(', ') })}{' '}
+            {plan.kind === 'handoff' ? t('plan.masked') : t('plan.reviewSecrets')}
           </span>
         </div>
       )}
 
       {plan && plan.writes.length > 1 && (
-        <nav className="flex gap-1 border-b border-ink-700 px-4 pt-2" aria-label="Files">
+        <nav className="flex gap-1 overflow-x-auto border-b border-ink-700 px-4 pt-2" aria-label={t('plan.files')}>
           {plan.writes.map((w, i) => (
             <button
               key={w.filePath}
               type="button"
               onClick={() => setActive(i)}
               className={cx(
-                '-mb-px truncate rounded-t-md border-b-2 px-3 py-1.5 font-mono text-[12px]',
+                'hit-target -mb-px truncate rounded-t-md border-b-2 px-3 py-1.5 font-mono text-[12px] whitespace-nowrap',
                 i === active ? 'border-signal text-paper' : 'border-transparent text-paper-mute hover:text-paper',
               )}
             >
@@ -141,7 +143,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
       <div className="min-h-[200px] flex-1 overflow-hidden">
         {error && <p className="px-5 py-4 text-[13px] text-danger">{error}</p>}
         {!plan && !error && <div className="m-5 h-40 animate-pulse rounded-lg bg-ink-800" />}
-        {plan && plan.writes.length === 0 && !plan.dirOps?.length && <p className="px-5 py-4 text-[13px] text-paper-dim">Nothing to write.</p>}
+        {plan && plan.writes.length === 0 && !plan.dirOps?.length && <p className="px-5 py-4 text-[13px] text-paper-dim">{t('plan.nothing')}</p>}
         {plan && plan.writes.length === 0 && !!plan.dirOps?.length && (
           <ul className="space-y-2 px-5 py-4">
             {plan.dirOps.map((op) => (
@@ -157,7 +159,9 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
                     </span>
                   )}
                 </span>
-                <Tag tone={op.op === 'copy-dir' ? 'ok' : 'warn'}>{op.op === 'copy-dir' ? (op.destExisted ? 'replace folder' : 'new folder') : 'delete folder'}</Tag>
+                <Tag tone={op.op === 'copy-dir' ? 'ok' : 'warn'}>
+                  {op.op === 'copy-dir' ? (op.destExisted ? t('plan.replaceFolder') : t('plan.newFolder')) : t('plan.deleteFolder')}
+                </Tag>
               </li>
             ))}
           </ul>
@@ -176,7 +180,13 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
               )}
               <span className="truncate font-mono text-paper-dim">{tildify(write.filePath)}</span>
               <Tag tone={write.before == null ? 'ok' : write.remove ? 'warn' : 'plain'}>
-                {write.symlinkTo ? `symlink -> ${write.symlinkTo}` : write.remove ? 'delete' : write.before == null ? 'new file' : 'modified'}
+                {write.symlinkTo
+                  ? `${t('matrix.symlink')} -> ${write.symlinkTo}`
+                  : write.remove
+                    ? t('plan.delete')
+                    : write.before == null
+                      ? t('plan.newFile')
+                      : t('plan.modified')}
               </Tag>
             </div>
             <DiffView className="flex-1 border-t border-ink-700/70" before={write.before ?? ''} after={write.remove ? '' : write.after} />
@@ -184,14 +194,14 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
         )}
       </div>
 
-      <footer className="flex items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
+      <footer className="flex flex-wrap items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
         {request.kind === 'transfer' && (
           <Button variant="quiet" disabled={loading} onClick={() => void run('summary')}>
-            <Sparkles className="size-3.5 text-signal" /> Summarize
+            <Sparkles className="size-3.5 text-signal" /> {t('plan.summarize')}
           </Button>
         )}
         {request.kind === 'skill' && (
-          <div className="flex items-center gap-1 rounded-lg bg-ink-950 p-0.5" role="group" aria-label="Transfer mode">
+          <div className="flex items-center gap-1 rounded-lg bg-ink-950 p-0.5" role="group" aria-label={t('plan.transferMode')}>
             {([false, true] as const).map((m) => (
               <button
                 key={String(m)}
@@ -203,22 +213,22 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
                   void run({ move: m });
                 }}
                 className={cx(
-                  'inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors',
-                  move === m ? 'bg-ink-700 text-paper' : 'text-paper-dim hover:text-paper',
+                  'hit-target inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium whitespace-nowrap transition-colors active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45 disabled:active:translate-y-0',
+                  move === m ? 'bg-ink-700 text-paper' : 'text-paper-dim hover:bg-ink-800 hover:text-paper',
                 )}
               >
                 {m ? <ArrowRightLeft className="size-3.5" /> : <Copy className="size-3.5" />}
-                {m ? 'Move (remove source)' : 'Copy'}
+                {m ? t('plan.move') : t('plan.copy')}
               </button>
             ))}
           </div>
         )}
-        <span className="flex-1 text-[12px] text-paper-mute">Every write is backed up first and can be undone from History.</span>
+        <span className="min-w-[220px] flex-1 text-[12px] text-paper-mute">{t('plan.backupHint')}</span>
         <Button variant="quiet" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button variant="primary" disabled={!plan || busy || loading || (plan.writes.length === 0 && !plan.dirOps?.length)} onClick={apply}>
-          {busy ? 'Applying...' : 'Apply'}
+          {busy ? t('plan.applying') : t('plan.apply')}
         </Button>
       </footer>
     </dialog>

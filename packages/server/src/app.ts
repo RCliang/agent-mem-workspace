@@ -30,6 +30,7 @@ import {
 import { Hono, type Context as HonoContext } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { EventBus } from './events.js';
+import { pickDirectory } from './pick-directory.js';
 import { revealFile } from './reveal.js';
 
 export interface AppOptions {
@@ -91,9 +92,25 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
 
   api.get('/projects', async (c) => c.json(await hub.projects()));
 
+  api.post('/projects/pick', async (c) => {
+    const selected = await pickDirectory();
+    if (selected) {
+      await hub.addProject(selected);
+      bus.emit({ type: 'roots' });
+    }
+    return c.json({ path: selected, projects: await hub.projects() });
+  });
+
   api.post('/projects', async (c) => {
     const { path: p } = await c.req.json<{ path: string }>();
     await hub.addProject(p);
+    bus.emit({ type: 'roots' });
+    return c.json(await hub.projects());
+  });
+
+  api.delete('/projects', async (c) => {
+    const { path: p } = await c.req.json<{ path: string }>();
+    await hub.removeProject(p);
     bus.emit({ type: 'roots' });
     return c.json(await hub.projects());
   });
