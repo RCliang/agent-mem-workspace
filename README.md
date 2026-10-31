@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/52437a36-500a-4212-ae2a-017e961e6925
+
 # agent-mem
 
 > One workspace for every coding agent's memory.
