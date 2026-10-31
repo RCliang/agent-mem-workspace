@@ -1,7 +1,5 @@
 
 
-https://github.com/user-attachments/assets/52437a36-500a-4212-ae2a-017e961e6925
-
 # agent-mem
 
 > One workspace for every coding agent's memory.
@@ -10,6 +8,8 @@ https://github.com/user-attachments/assets/52437a36-500a-4212-ae2a-017e961e6925
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](#)
 
 [简体中文](README.zh-CN.md)
+
+https://github.com/user-attachments/assets/52437a36-500a-4212-ae2a-017e961e6925
 
 Claude Code, Codex, Pi, Gemini CLI, Cursor, opencode, ZCode, Qoder and DeepSeek Harness each keep their own instruction files, skill folders and session logs. agent-mem puts all of them in one local-first interface:
 
