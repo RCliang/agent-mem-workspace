@@ -110,7 +110,7 @@ describe('HTTP API', () => {
     ]);
     expect((await call('GET', '/api/projects')).json.some((p: { path: string }) => p.path === project)).toBe(true);
     const mems: MemoryItem[] = (await call('GET', `/api/memories?project=${encodeURIComponent(project)}`)).json;
-    expect(mems.length).toBe(27);
+    expect(mems.length).toBe(33);
     const globals: MemoryItem[] = (await call('GET', '/api/memories')).json;
     expect(globals.every((m) => m.scope === 'global')).toBe(true);
   });

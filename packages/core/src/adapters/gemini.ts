@@ -3,6 +3,7 @@ import type { Context } from '../context.js';
 import { isDir } from '../fsutil.js';
 import type { AgentAdapter, MemoryItem } from '../types.js';
 import { fileItem, renderPlain } from './common.js';
+import { listGeminiProjects, listGeminiSessions, parseGeminiSession } from './gemini-sessions.js';
 
 /** Gemini CLI reads `GEMINI.md` at the global and project level and supports `@path` imports. */
 export function geminiAdapter(ctx: Context): AgentAdapter {
@@ -19,7 +20,7 @@ export function geminiAdapter(ctx: Context): AgentAdapter {
 
     watchRoots: () => [root],
 
-    listProjects: async () => [],
+    listProjects: () => listGeminiProjects(ctx),
 
     async readMemories(projectPath) {
       const items: (MemoryItem | null)[] = [await fileItem(id, path.join(root, 'GEMINI.md'), 'global', 'instructions', null, 'Global context (~/.gemini/GEMINI.md)')];
@@ -28,6 +29,7 @@ export function geminiAdapter(ctx: Context): AgentAdapter {
           await fileItem(id, path.join(projectPath, 'GEMINI.md'), 'project', 'instructions', projectPath, 'Project context (GEMINI.md)'),
           await fileItem(id, path.join(projectPath, '.gemini', 'GEMINI.md'), 'project', 'instructions', projectPath, 'Project context (.gemini/GEMINI.md)'),
         );
+        items.push(...(await listGeminiSessions(ctx, projectPath)));
       }
       return items.filter((i): i is MemoryItem => i !== null);
     },
@@ -48,5 +50,7 @@ export function geminiAdapter(ctx: Context): AgentAdapter {
     },
 
     renderFor: renderPlain,
+
+    parseSession: (filePath) => parseGeminiSession(filePath),
   };
 }

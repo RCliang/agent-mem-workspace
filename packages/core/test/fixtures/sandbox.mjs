@@ -1,5 +1,6 @@
 // Builds a fake home directory with Claude Code, Codex and Pi memories for tests and demos.
 import fs from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -86,6 +87,88 @@ export function createSandbox(root) {
   write(
     path.join(project, '.dsh', 'skills', 'release-check', 'SKILL.md'),
     '---\nname: release-check\ndescription: Check shop-api releases with DeepSeek Harness.\n---\n\nusage\n',
+  );
+
+  // DeepSeek Harness session in the Claude-Code-compatible jsonl shape.
+  const dshEnc = project.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-');
+  write(
+    path.join(home, '.dsh', 'sessions', dshEnc, '2026-10-22T06-00-00_dsh-7a1b.jsonl'),
+    [
+      JSON.stringify({ type: 'user', cwd: project, sessionId: 'dsh-7a1b', message: { role: 'user', content: 'Set up the release pipeline for tags' }, timestamp: '2026-10-22T06:00:00.000Z' }),
+      JSON.stringify({ type: 'assistant', cwd: project, sessionId: 'dsh-7a1b', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'write', input: { file_path: `${project}/.dsh/release.md` } }] }, timestamp: '2026-10-22T06:01:00.000Z' }),
+      JSON.stringify({ type: 'assistant', cwd: project, sessionId: 'dsh-7a1b', message: { role: 'assistant', content: [{ type: 'text', text: 'Release pipeline configured. Tag pushing still manual.' }] }, timestamp: '2026-10-22T06:02:00.000Z' }),
+    ].join('\n') + '\n',
+  );
+
+  // Qoder jsonl session (encodeQoderProject keeps the leading dash).
+  const qoderEnc = project.replace(/[/\\:]/g, '-');
+  write(
+    path.join(home, '.qoder', 'projects', qoderEnc, 'session-q.jsonl'),
+    [
+      JSON.stringify({ type: 'user', cwd: project, sessionId: 'q1', timestamp: '2026-10-23T00:00:00.000Z', message: { role: 'user', content: [{ type: 'text', text: 'Open the Qoder session' }] } }),
+      JSON.stringify({ type: 'assistant', timestamp: '2026-10-23T00:01:00.000Z', message: { role: 'assistant', content: [{ type: 'text', text: 'Here is the answer.' }] } }),
+    ].join('\n') + '\n',
+  );
+
+  // Cursor agent transcript (no composer db needed for listing and parsing).
+  const cursorEnc = project.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-');
+  const cursorId = '33333333-3333-3333-3333-333333333333';
+  write(
+    path.join(home, '.cursor', 'projects', cursorEnc, 'agent-transcripts', cursorId, `${cursorId}.jsonl`),
+    [
+      JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: 'Fix the login redirect' }] } }),
+      JSON.stringify({ role: 'assistant', message: { content: [{ type: 'text', text: 'Updated the route.' }, { type: 'tool_use', name: 'read', input: { file_path: 'src/app.ts' } }] } }),
+    ].join('\n') + '\n',
+  );
+
+  // ZCode sqlite session.
+  {
+    const dbFile = path.join(home, '.zcode', 'cli', 'db', 'db.sqlite');
+    fs.mkdirSync(path.dirname(dbFile), { recursive: true });
+    const db = new DatabaseSync(dbFile);
+    db.exec(`
+      CREATE TABLE session (id TEXT, directory TEXT, title TEXT, time_created INTEGER, time_updated INTEGER, time_deleted INTEGER);
+      CREATE TABLE message (id TEXT, session_id TEXT, data TEXT, sequence INTEGER, time_created INTEGER);
+      CREATE TABLE part (message_id TEXT, session_id TEXT, data TEXT, sequence INTEGER);
+    `);
+    db.prepare('INSERT INTO session (id, directory, title, time_created, time_updated, time_deleted) VALUES (?, ?, ?, ?, ?, 0)').run('zsess-1', project, '查看会话列表', 1_700_000_000_000, 1_700_000_200_000);
+    db.prepare('INSERT INTO message (id, session_id, data, sequence, time_created) VALUES (?, ?, ?, ?, ?)').run('zm1', 'zsess-1', JSON.stringify({ role: 'user' }), 1, 1_700_000_000_000);
+    db.prepare('INSERT INTO message (id, session_id, data, sequence, time_created) VALUES (?, ?, ?, ?, ?)').run('zm2', 'zsess-1', JSON.stringify({ role: 'assistant' }), 2, 1_700_000_100_000);
+    db.prepare('INSERT INTO part (message_id, session_id, data, sequence) VALUES (?, ?, ?, ?)').run('zm1', 'zsess-1', JSON.stringify({ type: 'text', text: '会话在哪里' }), 1);
+    db.prepare('INSERT INTO part (message_id, session_id, data, sequence) VALUES (?, ?, ?, ?)').run('zm2', 'zsess-1', JSON.stringify({ type: 'text', text: '在 cli 数据库里。' }), 1);
+    db.close();
+  }
+
+  // Gemini CLI: projects.json maps the project root to its tmp directory name.
+  write(path.join(home, '.gemini', 'projects.json'), JSON.stringify({ projects: { [project]: 'g-4f2a91' } }));
+  write(
+    path.join(home, '.gemini', 'tmp', 'g-4f2a91', 'chats', 'session-20261020T100000-abc.jsonl'),
+    [
+      JSON.stringify({ kind: 'session', sessionId: 'gem-demo', projectHash: 'g-4f2a91', startTime: '2026-10-20T10:00:00.000Z', directories: [project] }),
+      JSON.stringify({ id: 'u1', type: 'user', timestamp: '2026-10-20T10:00:01.000Z', content: 'Add a dark theme toggle to the settings page' }),
+      JSON.stringify({ id: 'g1', type: 'gemini', timestamp: '2026-10-20T10:01:00.000Z', content: '', thoughts: [{ subject: 'Theme state', description: 'Store the preference in localStorage' }], toolCalls: [{ name: 'write_file', description: 'src/theme.ts' }] }),
+    ].join('\n') + '\n',
+  );
+
+  // opencode: session metadata plus per-message JSON files sharded by session id.
+  const ocStorage = path.join(home, '.local', 'share', 'opencode', 'storage');
+  write(
+    path.join(ocStorage, 'session', 'ses_demo01.json'),
+    JSON.stringify({ id: 'ses_demo01', directory: project, title: '', time: { created: '2026-10-21T08:00:00.000Z', updated: '2026-10-21T08:02:00.000Z' } }),
+  );
+  write(
+    path.join(ocStorage, 'message', 'se', 'msg_1.json'),
+    JSON.stringify({ id: 'msg_1', sessionID: 'ses_demo01', role: 'user', time: { created: '2026-10-21T08:00:01.000Z' }, parts: [{ type: 'text', text: 'Wire up the export button' }] }),
+  );
+  write(
+    path.join(ocStorage, 'message', 'se', 'msg_2.json'),
+    JSON.stringify({
+      id: 'msg_2',
+      sessionID: 'ses_demo01',
+      role: 'assistant',
+      time: { created: '2026-10-21T08:01:00.000Z' },
+      parts: [{ type: 'step-start' }, { type: 'text', text: 'Export now writes a bundle and the button is wired.' }, { type: 'tool', tool: 'write', state: { input: { filePath: 'src/export.ts' } } }],
+    }),
   );
 
   return { home, dataDir, project, otherProject };

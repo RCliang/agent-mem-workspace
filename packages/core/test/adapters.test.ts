@@ -25,7 +25,7 @@ describe('adapters', () => {
     const { hub, project, otherProject } = await setup();
     const projects = await hub.projects();
     const shop = projects.find((p) => p.path === project);
-    expect(shop?.agents.sort()).toEqual(['claude-code', 'codex', 'pi']);
+    expect(shop?.agents.sort()).toEqual(['claude-code', 'codex', 'deepseek-harness', 'gemini', 'opencode', 'pi', 'qoder', 'zcode']);
     expect(projects.find((p) => p.path === otherProject)?.agents).toEqual(['codex']);
   });
 
@@ -50,14 +50,18 @@ describe('adapters', () => {
       'codex|local|session|rollout-2026-10-22T02-10-00-0199c1d2.jsonl',
       'codex|project|instructions|AGENTS.md',
       'cursor|global|instructions|core.mdc',
+      'cursor|local|session|33333333-3333-3333-3333-333333333333.jsonl',
       'cursor|project|instructions|backend.mdc',
       'deepseek-harness|global|instructions|AGENTS.md',
       'deepseek-harness|local|instructions|AGENTS.local.md',
+      'deepseek-harness|local|session|2026-10-22T06-00-00_dsh-7a1b.jsonl',
       'deepseek-harness|project|instructions|AGENTS.md',
       'deepseek-harness|project|instructions|CLAUDE.md',
       'gemini|global|instructions|GEMINI.md',
+      'gemini|local|session|session-20261020T100000-abc.jsonl',
       'gemini|project|instructions|GEMINI.md',
       'opencode|global|instructions|AGENTS.md',
+      'opencode|local|session|ses_demo01.json',
       'opencode|project|instructions|AGENTS.md',
       'pi|global|instructions|AGENTS.md',
       'pi|local|session|2026-10-22T08-00-00_pi-5e8a91.jsonl',
@@ -65,9 +69,11 @@ describe('adapters', () => {
       'pi|project|instructions|CLAUDE.md',
       'qoder|global|instructions|AGENTS.md',
       'qoder|local|instructions|AGENTS.local.md',
+      'qoder|local|session|session-q.jsonl',
       'qoder|project|instructions|AGENTS.md',
       'qoder|project|instructions|style.md',
       'zcode|global|instructions|AGENTS.md',
+      'zcode|local|session|zsess-1',
       'zcode|project|instructions|AGENTS.md',
     ]);
   });
@@ -90,7 +96,7 @@ describe('adapters', () => {
     expect(hub.adapter('gemini').capabilities.imports).toBe(true);
     expect(hub.adapter('gemini').instructionFile(project).filePath).toBe(path.join(project, 'GEMINI.md'));
 
-    const rules = items.filter((i) => i.agent === 'cursor').map((i) => path.basename(i.filePath)).sort();
+    const rules = items.filter((i) => i.agent === 'cursor' && i.kind === 'instructions').map((i) => path.basename(i.filePath)).sort();
     expect(rules).toEqual(['backend.mdc', 'core.mdc']);
     expect(hub.adapter('cursor').instructionFile(project).filePath).toBe(path.join(project, '.cursor', 'rules', 'agent-mem.mdc'));
     expect(hub.adapter('cursor').instructionFile(null).filePath).toBe(path.join(home, '.cursor', 'rules', 'agent-mem.mdc'));
@@ -116,7 +122,7 @@ describe('adapters', () => {
     expect(adapter.cli).toBeUndefined();
     expect(adapter.instructionFile(null).filePath).toBe(path.join(home, '.dsh', 'AGENTS.md'));
     expect(adapter.instructionFile(project).filePath).toBe(path.join(project, 'AGENTS.md'));
-    const items = (await hub.memories(project)).filter((i) => i.agent === 'deepseek-harness');
+    const items = (await hub.memories(project)).filter((i) => i.agent === 'deepseek-harness' && i.kind === 'instructions');
     expect(items.map((i) => i.filePath)).toEqual([
       path.join(home, '.dsh', 'AGENTS.md'),
       path.join(home, '.agents', 'AGENTS.md'),
@@ -125,6 +131,9 @@ describe('adapters', () => {
       path.join(project, 'AGENTS.local.md'),
       path.join(project, 'CLAUDE.local.md'),
     ]);
+    // Sessions sit alongside the instructions and parse through the shared jsonl reader.
+    const session = (await hub.memories(project)).find((i) => i.agent === 'deepseek-harness' && i.kind === 'session');
+    expect(session?.title).toBe('Set up the release pipeline for tags');
   });
 
   it('marks the instruction file as the write target and leaves Qoder rules false', async () => {
@@ -153,9 +162,15 @@ describe('adapters', () => {
     const { hub, project } = await setup();
     const sessions = (await hub.memories(project)).filter((i) => i.kind === 'session');
     expect(sessions.map((s) => s.title).sort()).toEqual([
+      'Add a dark theme toggle to the settings page',
       'Add rate limiting to the /api/upload endpoint, 10 requests per minute per user.',
+      'Fix the login redirect',
       'Migrate the settings page from class components to hooks and keep the existin...',
+      'Open the Qoder session',
+      'Set up the release pipeline for tags',
+      'Wire up the export button',
       'Write a CHANGELOG entry for v1.4 and bump the version in package.json.',
+      '查看会话列表',
     ]);
   });
 

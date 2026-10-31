@@ -3,8 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createContext, cursorAdapter, qoderAdapter, zcodeAdapter } from '@agent-mem/core';
+import { createContext, cursorAdapter, deepseekHarnessAdapter, geminiAdapter, opencodeAdapter, qoderAdapter, zcodeAdapter } from '@agent-mem/core';
 import { encodeCursorProject, cursorComposerPath } from '../src/adapters/cursor-sessions.js';
+import { dshSessionPath } from '../src/adapters/deepseek-harness.js';
 import { encodeQoderProject } from '../src/adapters/qoder.js';
 import { zcodeSessionPath } from '../src/adapters/zcode-sessions.js';
 
@@ -99,6 +100,104 @@ describe('vendor sessions', () => {
       ['assistant', 'They are in the database.'],
     ]);
     expect(composer.cwd).toBe(project);
+  });
+
+  it('lists a Gemini CLI chat through the projects.json index', async () => {
+    const { home, project } = homeFor('gemini');
+    const dir = 'g-4f2a91';
+    fs.mkdirSync(path.join(home, '.gemini', 'tmp', dir, 'chats'), { recursive: true });
+    fs.writeFileSync(path.join(home, '.gemini', 'projects.json'), JSON.stringify({ projects: { [project]: dir } }));
+    const chat = path.join(home, '.gemini', 'tmp', dir, 'chats', 'session-20261020T100000-abc.jsonl');
+    fs.writeFileSync(
+      chat,
+      [
+        JSON.stringify({ kind: 'session', sessionId: 'gem-demo', projectHash: dir, startTime: '2026-10-20T10:00:00.000Z', directories: [project] }),
+        JSON.stringify({ id: 'u1', type: 'user', timestamp: '2026-10-20T10:00:01.000Z', content: 'Add a dark theme toggle to the settings page' }),
+        JSON.stringify({ id: 'g1', type: 'gemini', timestamp: '2026-10-20T10:01:00.000Z', content: '', thoughts: [{ subject: 'Theme state', description: 'Store the preference in localStorage' }], toolCalls: [{ name: 'write_file', description: 'src/theme.ts' }] }),
+        JSON.stringify({ id: 'i1', type: 'info', content: 'noise that must be skipped' }),
+      ].join('\n'),
+    );
+
+    const ctx = createContext({ home, dataDir: path.join(home, '.agent-mem'), env: {} });
+    const adapter = geminiAdapter(ctx);
+    const sessions = (await adapter.readMemories(project)).filter((item) => item.kind === 'session');
+    expect(sessions.map((item) => item.title)).toEqual(['Add a dark theme toggle to the settings page']);
+    expect((await adapter.listProjects()).map((item) => item.path)).toEqual([project]);
+    const parsed = await adapter.parseSession!(sessions[0]!.filePath);
+    expect(parsed.sessionId).toBe('gem-demo');
+    expect(parsed.cwd).toBe(project);
+    expect(parsed.messages.map((message) => [message.role, message.text])).toEqual([
+      ['user', 'Add a dark theme toggle to the settings page'],
+      ['assistant', 'Theme state'],
+    ]);
+    expect(parsed.messages[1]?.toolCalls).toEqual([{ name: 'write_file', target: 'src/theme.ts' }]);
+  });
+
+  it('lists an opencode session and stitches its message parts', async () => {
+    const { home, project } = homeFor('opencode');
+    const storage = path.join(home, '.local', 'share', 'opencode', 'storage');
+    const sessionId = 'ses_demo01';
+    fs.mkdirSync(path.join(storage, 'session'), { recursive: true });
+    fs.mkdirSync(path.join(storage, 'message', sessionId.slice(0, 2)), { recursive: true });
+    fs.writeFileSync(
+      path.join(storage, 'session', `${sessionId}.json`),
+      JSON.stringify({ id: sessionId, directory: project, title: '', time: { created: '2026-10-21T08:00:00.000Z', updated: '2026-10-21T08:02:00.000Z' } }),
+    );
+    fs.writeFileSync(
+      path.join(storage, 'message', sessionId.slice(0, 2), 'msg_1.json'),
+      JSON.stringify({ id: 'msg_1', sessionID: sessionId, role: 'user', time: { created: '2026-10-21T08:00:01.000Z' }, parts: [{ type: 'text', text: 'Wire up the export button' }] }),
+    );
+    fs.writeFileSync(
+      path.join(storage, 'message', sessionId.slice(0, 2), 'msg_2.json'),
+      JSON.stringify({
+        id: 'msg_2',
+        sessionID: sessionId,
+        role: 'assistant',
+        time: { created: '2026-10-21T08:01:00.000Z' },
+        parts: [{ type: 'step-start' }, { type: 'text', text: 'Export now writes a bundle.' }, { type: 'tool', tool: 'write', state: { input: { filePath: 'src/export.ts' } } }],
+      }),
+    );
+
+    const ctx = createContext({ home, dataDir: path.join(home, '.agent-mem'), env: {} });
+    const adapter = opencodeAdapter(ctx);
+    const sessions = (await adapter.readMemories(project)).filter((item) => item.kind === 'session');
+    expect(sessions.map((item) => item.title)).toEqual(['Wire up the export button']);
+    expect((await adapter.listProjects()).map((item) => item.path)).toEqual([project]);
+    expect(adapter.skillRoots!(null)).toEqual([{ dir: path.join(home, '.config', 'opencode', 'skill'), scope: 'global' }]);
+    const parsed = await adapter.parseSession!(sessions[0]!.filePath);
+    expect(parsed.sessionId).toBe(sessionId);
+    expect(parsed.cwd).toBe(project);
+    expect(parsed.messages.map((message) => [message.role, message.text])).toEqual([
+      ['user', 'Wire up the export button'],
+      ['assistant', 'Export now writes a bundle.'],
+    ]);
+    expect(parsed.messages[1]?.toolCalls).toEqual([{ name: 'write', target: 'src/export.ts' }]);
+  });
+
+  it('lists a DeepSeek Harness session for the project', async () => {
+    const { home, project } = homeFor('dsh');
+    const enc = project.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-');
+    const file = path.join(home, '.dsh', 'sessions', enc, '2026-10-22T06-00-00_dsh-7a1b.jsonl');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      [
+        JSON.stringify({ type: 'user', cwd: project, sessionId: 'dsh-7a1b', timestamp: '2026-10-22T06:00:00.000Z', message: { role: 'user', content: 'Set up the release pipeline' } }),
+        JSON.stringify({ type: 'assistant', cwd: project, sessionId: 'dsh-7a1b', timestamp: '2026-10-22T06:01:00.000Z', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'write', input: { file_path: 'release.md' } }] } }),
+        JSON.stringify({ type: 'assistant', cwd: project, sessionId: 'dsh-7a1b', timestamp: '2026-10-22T06:02:00.000Z', message: { role: 'assistant', content: [{ type: 'text', text: 'Pipeline ready.' }] } }),
+      ].join('\n'),
+    );
+    const ctx = createContext({ home, dataDir: path.join(home, '.agent-mem'), env: {} });
+    const adapter = deepseekHarnessAdapter(ctx);
+    const sessions = (await adapter.readMemories(project)).filter((item) => item.kind === 'session');
+    expect(sessions.map((item) => item.title)).toEqual(['Set up the release pipeline']);
+    expect(sessions[0]?.filePath).toBe(dshSessionPath(home, '2026-10-22T06-00-00_dsh-7a1b', project));
+    expect((await adapter.listProjects()).map((item) => item.path)).toEqual([project]);
+    const parsed = await adapter.parseSession!(file);
+    expect(parsed.sessionId).toBe('dsh-7a1b');
+    expect(parsed.cwd).toBe(project);
+    expect(parsed.messages.flatMap((m) => m.toolCalls)).toEqual([{ name: 'write', target: 'release.md' }]);
+    expect(parsed.messages.at(-1)?.text).toBe('Pipeline ready.');
   });
 
   it('lists a Qoder jsonl session for the project', async () => {

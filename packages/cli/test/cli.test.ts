@@ -106,6 +106,35 @@ describe('agent-mem cli', () => {
     }
   });
 
+  it('hands sessions from every vendor agent off to claude code', async () => {
+    const { project, home } = await withHome();
+    const prevMode = process.env.AGENT_MEM_LLM_MODE;
+    const prevKey = process.env.AGENT_MEM_LLM_API_KEY;
+    process.env.AGENT_MEM_LLM_MODE = 'api';
+    delete process.env.AGENT_MEM_LLM_API_KEY;
+    try {
+      for (const agent of ['gemini', 'opencode', 'dsh', 'qoder', 'zcode', 'cursor']) {
+        const cap = capture();
+        expect(await run(['handoff', '--from', agent, '--to', 'claude', '-p', project, '--yes'], cap.io)).toBe(0);
+      }
+      const memDir = path.join(home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
+      const docs = fs.readdirSync(memDir);
+      for (const prefix of ['handoff-gemini-', 'handoff-opencode-', 'handoff-deepseek-harness-', 'handoff-qoder-', 'handoff-zcode-', 'handoff-cursor-']) {
+        expect(docs.some((f) => f.startsWith(prefix)), prefix).toBe(true);
+      }
+      const geminiDoc = read(path.join(memDir, docs.find((f) => f.startsWith('handoff-gemini-'))!));
+      expect(geminiDoc).toContain('# Handoff: shop-api (from Gemini CLI)');
+      expect(geminiDoc).toContain('dark theme toggle');
+      const ocDoc = read(path.join(memDir, docs.find((f) => f.startsWith('handoff-opencode-'))!));
+      expect(ocDoc).toContain('Wire up the export button');
+    } finally {
+      if (prevMode === undefined) delete process.env.AGENT_MEM_LLM_MODE;
+      else process.env.AGENT_MEM_LLM_MODE = prevMode;
+      if (prevKey === undefined) delete process.env.AGENT_MEM_LLM_API_KEY;
+      else process.env.AGENT_MEM_LLM_API_KEY = prevKey;
+    }
+  });
+
   it('adds a project folder', async () => {
     const { root } = await withHome();
     const extra = path.join(root, 'work', 'manual');

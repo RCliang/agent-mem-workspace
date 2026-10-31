@@ -80,12 +80,14 @@ Search by title, path, or content from the top bar. Use the collapsible sidebar 
 | Claude Code | `CLAUDE.md`, project memories | Supported |
 | Codex | `AGENTS.md`, `AGENTS.override.md` | Supported |
 | Pi | `AGENTS.md`, `CLAUDE.md` | Supported |
-| Gemini CLI | `GEMINI.md` | Not parsed |
-| Cursor | `rules/*.mdc` | Not parsed |
-| opencode | `AGENTS.md` | Not parsed |
-| ZCode | `AGENTS.md` | Not parsed |
-| Qoder | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | Not parsed |
-| DeepSeek Harness | `AGENTS.md`, `CLAUDE.md`, and local variants | Not parsed |
+| Gemini CLI | `GEMINI.md` | Supported (`~/.gemini/tmp/<dir>/chats/*.jsonl` via `projects.json`) |
+| Cursor | `rules/*.mdc` | Supported (agent transcripts + Composer chats in `state.vscdb`) |
+| opencode | `AGENTS.md` | Supported (`~/.local/share/opencode/storage`, file-based versions) |
+| ZCode | `AGENTS.md` | Supported (`~/.zcode/cli/db/db.sqlite`) |
+| Qoder | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | Supported (`~/.qoder/projects/<project>/*.jsonl`) |
+| DeepSeek Harness | `AGENTS.md`, `CLAUDE.md`, and local variants | Supported (`~/.dsh/sessions/<project>/*.jsonl`) |
+
+Every parsed session can be handed off to another agent from the UI or `agent-mem handoff --from <agent>`.
 
 <details>
 <summary>View full global, project, and session paths</summary>
@@ -95,12 +97,12 @@ Search by title, path, or content from the top bar. Use the collapsible sidebar 
 | Claude Code | `~/.claude/CLAUDE.md` | `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, plus `~/.claude/projects/<project>/memory/*.md` | `~/.claude/projects/<project>/*.jsonl` |
 | Codex | `~/.codex/AGENTS.md` | `AGENTS.md` (`AGENTS.override.md` wins) | `~/.codex/sessions/**/*.jsonl` |
 | Pi | `~/.pi/agent/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` | `~/.pi/agent/sessions/--<project>--/*.jsonl` |
-| Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`, `.gemini/GEMINI.md` | not parsed |
-| Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | not parsed |
-| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | not parsed |
-| ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | not parsed |
-| Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | not parsed |
-| DeepSeek Harness | `~/.dsh/AGENTS.md`, `~/.agents/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` (plus `.local` variants) | not parsed |
+| Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`, `.gemini/GEMINI.md` | `~/.gemini/tmp/<dir>/chats/*.jsonl` |
+| Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | `~/.cursor/projects/<project>/agent-transcripts/**` + `state.vscdb` |
+| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | `~/.local/share/opencode/storage/{session,message}` |
+| ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | `~/.zcode/cli/db/db.sqlite` |
+| Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | `~/.qoder/projects/<project>/*.jsonl` |
+| DeepSeek Harness | `~/.dsh/AGENTS.md`, `~/.agents/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` (plus `.local` variants) | `~/.dsh/sessions/<project>/*.jsonl` |
 
 </details>
 

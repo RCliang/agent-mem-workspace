@@ -22,6 +22,53 @@ async function session(hub: Awaited<ReturnType<typeof setup>>['hub'], project: s
 afterEach(() => vi.unstubAllGlobals());
 
 describe('handoff', () => {
+  it('hands a Gemini CLI session off through its thoughts and tool calls', async () => {
+    const { hub, project } = await setup();
+    hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';
+    const s = await session(hub, project, 'gemini');
+    const plan = await planTransfer(hub, s, 'claude-code', { render: 'summary', now });
+    await applyPlan(hub.ctx, plan);
+    const memDir = path.join(hub.ctx.home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
+    const doc = fs.readdirSync(memDir).filter((f) => f.startsWith('handoff-gemini-'))[0]!;
+    const body = read(path.join(memDir, doc));
+    expect(body).toContain('# Handoff: shop-api (from Gemini CLI)');
+    expect(body).toContain('## Goal\nAdd a dark theme toggle to the settings page');
+    expect(body).toContain('- `src/theme.ts` (write_file)');
+    expect(body).toContain('Theme state');
+    expect(read(path.join(memDir, 'MEMORY.md'))).toContain(`](${doc})`);
+  });
+
+  it('hands an opencode session off, stitching its message parts', async () => {
+    const { hub, project } = await setup();
+    hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';
+    const s = await session(hub, project, 'opencode');
+    const plan = await planTransfer(hub, s, 'claude-code', { render: 'summary', now });
+    await applyPlan(hub.ctx, plan);
+    const memDir = path.join(hub.ctx.home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
+    const doc = fs.readdirSync(memDir).filter((f) => f.startsWith('handoff-opencode-'))[0]!;
+    const body = read(path.join(memDir, doc));
+    expect(body).toContain('# Handoff: shop-api (from opencode)');
+    expect(body).toContain('## Goal\nWire up the export button');
+    expect(body).toContain('- `src/export.ts` (write)');
+    expect(body).toContain('button is wired');
+  });
+
+  it('hands a DeepSeek Harness session off like the other jsonl agents', async () => {
+    const { hub, project } = await setup();
+    hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';
+    const s = await session(hub, project, 'deepseek-harness');
+    const plan = await planTransfer(hub, s, 'claude-code', { render: 'summary', now });
+    await applyPlan(hub.ctx, plan);
+    const memDir = path.join(hub.ctx.home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
+    const doc = fs.readdirSync(memDir).filter((f) => f.startsWith('handoff-deepseek-harness-'))[0]!;
+    const body = read(path.join(memDir, doc));
+    expect(body).toContain('# Handoff: shop-api (from DeepSeek Harness)');
+    expect(body).toContain('## Goal\nSet up the release pipeline for tags');
+    expect(body).toContain('Tag pushing still manual');
+    // The target agent reads it through its memory index.
+    expect(read(path.join(memDir, 'MEMORY.md'))).toContain('read this before continuing');
+  });
+
   it('turns a Codex session into Claude Code auto memory', async () => {
     const { hub, project } = await setup();
     hub.ctx.env.AGENT_MEM_LLM_MODE = 'api';

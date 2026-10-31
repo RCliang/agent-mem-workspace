@@ -3,6 +3,7 @@ import type { Context } from '../context.js';
 import { isDir } from '../fsutil.js';
 import type { AgentAdapter, MemoryItem } from '../types.js';
 import { fileItem, renderPlain } from './common.js';
+import { listOpencodeProjects, listOpencodeSessions, opencodeStorage, parseOpencodeSession } from './opencode-sessions.js';
 
 /** opencode reads the standard `AGENTS.md` globally under its config dir and in every project. */
 export function opencodeAdapter(ctx: Context): AgentAdapter {
@@ -19,14 +20,21 @@ export function opencodeAdapter(ctx: Context): AgentAdapter {
 
     detect: () => isDir(configRoot),
 
-    watchRoots: () => [configRoot],
+    watchRoots: () => [configRoot, path.dirname(opencodeStorage(ctx))],
 
-    listProjects: async () => [],
+    // opencode keeps global skills under <config>/skill/<name>/SKILL.md.
+    skillRoots: (projectPath) => [
+      { dir: path.join(configRoot, 'skill'), scope: 'global' as const },
+      ...(projectPath ? [{ dir: path.join(projectPath, '.opencode', 'skill'), scope: 'project' as const }] : []),
+    ],
+
+    listProjects: () => listOpencodeProjects(ctx),
 
     async readMemories(projectPath) {
       const items: (MemoryItem | null)[] = [await fileItem(id, path.join(configRoot, 'AGENTS.md'), 'global', 'instructions', null, 'Global instructions (~/.config/opencode/AGENTS.md)')];
       if (projectPath) {
         items.push(await fileItem(id, path.join(projectPath, 'AGENTS.md'), 'project', 'instructions', projectPath, 'Project instructions (AGENTS.md)'));
+        items.push(...(await listOpencodeSessions(ctx, projectPath)));
       }
       return items.filter((i): i is MemoryItem => i !== null);
     },
@@ -47,5 +55,7 @@ export function opencodeAdapter(ctx: Context): AgentAdapter {
     },
 
     renderFor: renderPlain,
+
+    parseSession: (filePath) => parseOpencodeSession(ctx, filePath),
   };
 }
