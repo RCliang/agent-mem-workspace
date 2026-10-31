@@ -16,7 +16,7 @@ try {
     'install', '--prefix', temporary, '--omit=dev', '--no-audit', '--no-fund',
     '--registry=https://registry.npmjs.org', '--fetch-retries=1', '--fetch-timeout=15000', '--cache', path.join(temporary, 'cache'), path.resolve(archive),
   ], { stdio: 'inherit', shell: process.platform === 'win32' });
-  const bin = path.join(temporary, 'node_modules/agent-mem/dist/index.js');
+  const bin = path.join(temporary, 'node_modules/@liangstech/agent-mem/dist/index.js');
   const command = path.join(temporary, 'node_modules/.bin', process.platform === 'win32' ? 'agent-mem.cmd' : 'agent-mem');
   const version = execFileSync(command, ['--version'], { cwd: temporary, encoding: 'utf8', shell: process.platform === 'win32' }).trim();
   assert.equal(execFileSync(process.execPath, [bin, '--version'], { encoding: 'utf8' }).trim(), version);
@@ -51,7 +51,7 @@ try {
   assert.ok(projects.length > 0, 'demo project missing');
   const memories = await fetch(`${base}/api/memories?project=${encodeURIComponent(projects[0].path)}`).then((response) => response.json());
   assert.ok(memories.length > 0, 'demo memories missing');
-  console.log(`Installed agent-mem ${version} on ${process.version}; CLI, UI assets, projects, and memories work outside the repository.`);
+  console.log(`Installed @liangstech/agent-mem ${version} on ${process.version}; CLI, UI assets, projects, and memories work outside the repository.`);
 } finally {
   if (child && child.exitCode === null) {
     child.kill('SIGTERM');

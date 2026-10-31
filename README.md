@@ -25,13 +25,13 @@ https://github.com/user-attachments/assets/52437a36-500a-4212-ae2a-017e961e6925
 Requires **Node.js 22.13.0+**. This opens a local web app:
 
 ```bash
-npx --yes agent-mem@latest ui
+npx --yes @liangstech/agent-mem@latest ui
 ```
 
 Want to look around first? Start a demo sandbox:
 
 ```bash
-npx agent-mem ui --demo
+npx @liangstech/agent-mem ui --demo
 ```
 
 `--demo` uses a throwaway directory and never reads your real agent data.
@@ -129,12 +129,12 @@ Summarization prefers a locally installed agent CLI (target agent → source age
 Inspect project memories, check your setup, or hand off work to another agent:
 
 ```bash
-npx agent-mem ls -p .
-npx agent-mem doctor
-npx agent-mem handoff --from codex --to claude -p . --yes
+npx @liangstech/agent-mem ls -p .
+npx @liangstech/agent-mem doctor
+npx @liangstech/agent-mem handoff --from codex --to claude -p . --yes
 ```
 
-The full examples below use `agent-mem` directly. Prefix them with `npx` if you haven't installed the command globally.
+The full examples below use `agent-mem` directly. If you haven't installed the command globally, replace `agent-mem` at the start of each command with `npx @liangstech/agent-mem`.
 
 <details>
 <summary>Expand commands and examples</summary>

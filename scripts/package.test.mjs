@@ -18,6 +18,7 @@ test('the npm archive includes a standalone CLI, web UI, and usable documentatio
     const tarball = path.join(temporary, archive.filename);
     const read = (file) => execFileSync('tar', ['-xOf', tarball, `package/${file}`], { encoding: 'utf8' });
     const manifest = JSON.parse(read('package.json'));
+    assert.equal(manifest.name, '@liangstech/agent-mem');
     assert.equal(manifest.engines?.node, '>=22.13.0');
     assert.ok(manifest.scripts.prepack, 'packing must rebuild the release');
     assert.ok(!Object.keys(manifest.dependencies).some((name) => name.startsWith('@agent-mem/')), 'internal modules must ship inside the CLI');
@@ -29,7 +30,7 @@ test('the npm archive includes a standalone CLI, web UI, and usable documentatio
     for (const name of ['README.md', 'README.zh-CN.md']) {
       const markdown = read(name);
       assert.doesNotMatch(markdown, /(?:href|src)="packages\//, 'repository paths break on npm');
-      assert.match(markdown, /npx agent-mem ui/);
+      assert.match(markdown, /npx @liangstech\/agent-mem ui/);
     }
   } finally {
     rmSync(temporary, { recursive: true, force: true });

@@ -27,13 +27,13 @@ https://github.com/user-attachments/assets/35be245a-d86e-4f83-8438-97e660956099
 需要 **Node.js 22.13.0+**。运行后会打开本地网页。
 
 ```bash
-npx --yes agent-mem@latest ui
+npx --yes @liangstech/agent-mem@latest ui
 ```
 
 想先看看界面，可以使用演示沙盒：
 
 ```bash
-npx agent-mem ui --demo
+npx @liangstech/agent-mem ui --demo
 ```
 
 `--demo` 使用一次性临时目录，不读取你的真实 agent 数据。
@@ -131,12 +131,12 @@ npx agent-mem ui --demo
 查看项目记忆、检查环境，或把工作交给另一个 agent：
 
 ```bash
-npx agent-mem ls -p .
-npx agent-mem doctor
-npx agent-mem handoff --from codex --to claude -p . --yes
+npx @liangstech/agent-mem ls -p .
+npx @liangstech/agent-mem doctor
+npx @liangstech/agent-mem handoff --from codex --to claude -p . --yes
 ```
 
-下面的完整示例使用 `agent-mem` 命令。如果未全局安装，在命令前加 `npx`。
+下面的完整示例使用 `agent-mem` 命令。如果未全局安装，把命令开头的 `agent-mem` 换成 `npx @liangstech/agent-mem`。
 
 <details>
 <summary>展开命令与示例</summary>
