@@ -1,14 +1,14 @@
 <div align="center">
-  <img src="packages/web/public/favicon.svg" width="64" height="64" alt="agent-mem logo">
+  <img src="https://raw.githubusercontent.com/RCliang/agent-mem-workspace/main/packages/web/public/favicon.svg" width="64" height="64" alt="agent-mem logo">
   <h1>agent-mem</h1>
   <p><strong>一个工作台，管理所有编码 agent 的记忆。</strong></p>
   <p>查看、编辑、共享记忆文件，在不同 agent 之间交接工作。</p>
   <p>
-    <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%E2%89%A520-3fb68b?style=flat-square" alt="Node.js 20 or newer"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-a99bea?style=flat-square" alt="MIT license"></a>
+    <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%E2%89%A522.13.0-3fb68b?style=flat-square" alt="Node.js 22.13.0 or newer"></a>
+    <a href="https://github.com/RCliang/agent-mem-workspace/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-a99bea?style=flat-square" alt="MIT license"></a>
     <a href="#快速开始"><img src="https://img.shields.io/badge/UI-English%20%2B%20中文-d97757?style=flat-square" alt="English and Chinese UI"></a>
   </p>
-  <p><a href="README.md">English</a> · <strong>简体中文</strong></p>
+  <p><a href="https://github.com/RCliang/agent-mem-workspace/blob/main/README.md">English</a> · <strong>简体中文</strong></p>
   <p><a href="#产品演示">产品演示</a> · <a href="#快速开始">快速开始</a> · <a href="#功能概览">功能概览</a> · <a href="#支持的-agent">支持的 agent</a> · <a href="#命令行">命令行</a></p>
 </div>
 
@@ -24,10 +24,10 @@ https://github.com/user-attachments/assets/35be245a-d86e-4f83-8438-97e660956099
 
 ## 快速开始
 
-需要 **Node.js 20+**。运行后会打开本地网页。
+需要 **Node.js 22.13.0+**。运行后会打开本地网页。
 
 ```bash
-npx agent-mem ui
+npx --yes agent-mem@latest ui
 ```
 
 想先看看界面，可以使用演示沙盒：
@@ -206,6 +206,16 @@ export AGENT_MEM_LLM_BASE_URL=https://api.deepseek.com   # 可选，默认 OpenA
 export AGENT_MEM_LLM_MODEL=deepseek-chat                 # 可选
 ```
 
+## 发布 npm
+
+在仓库根目录安装依赖后，执行：
+
+```bash
+pnpm --dir packages/cli publish --access public
+```
+
+`prepack` 会重新构建并检查安装包。发布包内含 CLI、网页和内部模块，用户无需安装 pnpm 或编译源码。需要有效的 npm 登录；发布新版本前先更新 `packages/cli/package.json` 的版本号。
+
 ## 开发
 
 从源码运行：
@@ -238,4 +248,4 @@ pnpm --filter @agent-mem/web dev   # 前端热更新，接口代理到 4477
 
 ## 许可证
 
-[MIT](LICENSE)。
+[MIT](https://github.com/RCliang/agent-mem-workspace/blob/main/LICENSE)。

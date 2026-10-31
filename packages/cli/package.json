@@ -9,17 +9,21 @@
   },
   "files": [
     "dist",
-    "web-dist"
+    "web-dist",
+    "README.zh-CN.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "pnpm --dir ../.. build && pnpm --dir ../.. test:package"
   },
   "dependencies": {
-    "@agent-mem/core": "workspace:*",
-    "@agent-mem/server": "workspace:*",
     "commander": "^14.0.0",
-    "diff": "^8.0.4"
+    "diff": "^8.0.4",
+    "@hono/node-server": "^1.19.0",
+    "chokidar": "^4.0.3",
+    "hono": "^4.10.0"
   },
   "repository": {
     "type": "git",
@@ -38,5 +42,16 @@
     "skills",
     "handoff"
   ],
-  "homepage": "https://github.com/RCliang/agent-mem-workspace#readme"
+  "homepage": "https://github.com/RCliang/agent-mem-workspace#readme",
+  "devDependencies": {
+    "@agent-mem/core": "workspace:*",
+    "@agent-mem/server": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }

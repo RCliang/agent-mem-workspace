@@ -1,14 +1,14 @@
 <div align="center">
-  <img src="packages/web/public/favicon.svg" width="64" height="64" alt="agent-mem logo">
+  <img src="https://raw.githubusercontent.com/RCliang/agent-mem-workspace/main/packages/web/public/favicon.svg" width="64" height="64" alt="agent-mem logo">
   <h1>agent-mem</h1>
   <p><strong>One workspace for every coding agent's memory.</strong></p>
   <p>Browse, edit, and share memory files. Hand off work between coding agents.</p>
   <p>
-    <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%E2%89%A520-3fb68b?style=flat-square" alt="Node.js 20 or newer"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-a99bea?style=flat-square" alt="MIT license"></a>
+    <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%E2%89%A522.13.0-3fb68b?style=flat-square" alt="Node.js 22.13.0 or newer"></a>
+    <a href="https://github.com/RCliang/agent-mem-workspace/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-a99bea?style=flat-square" alt="MIT license"></a>
     <a href="#quick-start"><img src="https://img.shields.io/badge/UI-English%20%2B%20Chinese-d97757?style=flat-square" alt="English and Chinese UI"></a>
   </p>
-  <p><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
+  <p><strong>English</strong> · <a href="https://github.com/RCliang/agent-mem-workspace/blob/main/README.zh-CN.md">简体中文</a></p>
   <p><a href="#demo">Demo</a> · <a href="#quick-start">Quick start</a> · <a href="#features">Features</a> · <a href="#supported-agents">Supported agents</a> · <a href="#cli">CLI</a></p>
 </div>
 
@@ -22,10 +22,10 @@ https://github.com/user-attachments/assets/52437a36-500a-4212-ae2a-017e961e6925
 
 ## Quick start
 
-Requires **Node.js 20+**. This opens a local web app:
+Requires **Node.js 22.13.0+**. This opens a local web app:
 
 ```bash
-npx agent-mem ui
+npx --yes agent-mem@latest ui
 ```
 
 Want to look around first? Start a demo sandbox:
@@ -204,6 +204,16 @@ export AGENT_MEM_LLM_BASE_URL=https://api.deepseek.com   # optional, defaults to
 export AGENT_MEM_LLM_MODEL=deepseek-chat                 # optional
 ```
 
+## Publish to npm
+
+After installing dependencies at the repository root, run:
+
+```bash
+pnpm --dir packages/cli publish --access public
+```
+
+The `prepack` hook rebuilds and checks the archive. The package includes the CLI, web UI, and internal modules. Users need neither pnpm nor a source build. Publishing requires a valid npm login. Bump `packages/cli/package.json` before publishing another version.
+
 ## Development
 
 Run from source:
@@ -236,4 +246,4 @@ Before every write, agent-mem compares the content hash from when you opened the
 
 ## License
 
-[MIT](LICENSE).
+[MIT](https://github.com/RCliang/agent-mem-workspace/blob/main/LICENSE).
