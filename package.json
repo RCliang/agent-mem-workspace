@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm -r --filter ./packages/core --filter ./packages/server --filter ./packages/cli run build && pnpm --filter @agent-mem/web run build",
+    "build": "pnpm -r --filter ./packages/core --filter ./packages/server --filter ./packages/cli run build && pnpm --filter @agent-mem/web run build && node -e \"const fs=require('fs');fs.cpSync('packages/web/dist', 'packages/cli/web-dist', { recursive: true });fs.copyFileSync('README.md', 'packages/cli/README.md')\"",
     "typecheck": "pnpm --filter @agent-mem/core --filter @agent-mem/server run build && pnpm -r run typecheck",
     "lint": "eslint .",
     "test": "vitest run",

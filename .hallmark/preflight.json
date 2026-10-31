@@ -1,0 +1,27 @@
+{
+  "scanned": "2026-10-28",
+  "findings": {
+    "fonts": "IBM Plex Sans and IBM Plex Mono via @fontsource (packages/web/package.json; packages/web/src/styles.css:8-12)",
+    "palette": "Custom warm-dark OKLCH tokens and amber signal (packages/web/src/tokens.css:10-23; packages/web/src/styles.css:15-48)",
+    "motion": "CSS state keyframes with a reduced-motion fallback and short Tailwind transitions (packages/web/src/styles.css:190-210; packages/web/src/base.css:25)",
+    "spacing": "Hallmark spacing tokens with Tailwind v4 utilities (packages/web/src/tokens.css:2; packages/web/package.json)",
+    "framework": "React 19, TypeScript and Vite 7 single-page app (packages/web/package.json)",
+    "product": "Four local-first app views on /: Board, Skills, Share matrix and History (packages/web/src/App.tsx:16-23)"
+  },
+  "preserve": [
+    "All content, routes, links, fields, handlers, ids and test hooks",
+    "The agent-mem name, favicon and official agent artwork",
+    "Shared and individual memory layers, adaptive agent grid and all drag-and-drop behavior",
+    "The four views and their loading, empty, error and populated behavior already implemented"
+  ],
+  "introduce": [
+    "The user-requested Dusk theme with slate surfaces, periwinkle and apricot signals, and Wix Madefor faces",
+    "A single-row workspace toolbar with explicit sidebar view navigation",
+    "Consistent Dusk controls, panels, tables, drawers and dialogs",
+    "Hallmark Floor, Reflex and Finish verification"
+  ],
+  "limitations": [
+    "Hallmark render tier unavailable: puppeteer-core is not installed",
+    "The in-app browser reports a 0 by 0 viewport, so screenshot and visual acceptance remain unavailable"
+  ]
+}

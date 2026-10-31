@@ -8,7 +8,8 @@
     "agent-mem": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "web-dist"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -19,5 +20,23 @@
     "@agent-mem/server": "workspace:*",
     "commander": "^14.0.0",
     "diff": "^8.0.4"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RCliang/agent-mem-workspace.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RCliang/agent-mem-workspace/issues"
+  },
+  "keywords": [
+    "agent",
+    "memory",
+    "claude-code",
+    "codex",
+    "cli",
+    "coding-agents",
+    "skills",
+    "handoff"
+  ],
+  "homepage": "https://github.com/RCliang/agent-mem-workspace#readme"
 }

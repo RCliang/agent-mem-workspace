@@ -1,48 +1,83 @@
 # agent-mem
 
-Overview: a local-first tool that shows the memory files of the coding agents installed on your machine (Claude Code, Codex, Pi, and anything you add), lets you edit them, share one file with the other agents, and drag a session from one agent onto another. Sharing writes a file the target agent already reads. A drag of a session becomes a handoff note, because one agent's transcript cannot be loaded into another's session.
+> One workspace for every coding agent's memory.
 
-在本机用一个界面看、改、同步 Claude Code、Codex、Pi 的记忆文件，也可以把某个会话整理成交接文档交给另一个 agent。程序只监听 `127.0.0.1`，不上传任何内容。
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-green)](https://nodejs.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](#)
 
-## 它能做什么
+[简体中文](README.zh-CN.md)
 
-静态记忆就是这些 agent 启动时会读的 Markdown，所以直接改文件是可靠的：
+Claude Code, Codex, Pi, Gemini CLI, Cursor, opencode, ZCode, Qoder and DeepSeek Harness each keep their own instruction files, skill folders and session logs. agent-mem puts all of them in one local-first interface:
 
-| Agent | 全局 | 项目 | 会话记录 |
+- **See everything.** Every memory file every installed agent reads — global and per-project — deduplicated when several agents share the same file.
+- **Edit safely.** In-place Markdown editing with diffs; every write is backed up and undoable.
+- **Share one file across agents.** `import` / `symlink` / `copy` strategies, auto-synced when the source changes.
+- **Hand off sessions.** Drag a session from one agent onto another and it becomes a handoff note the target agent reads on its next start. Summaries run on your locally installed agent CLIs (`claude -p`, `codex exec`, `pi -p`) — no API key required.
+- **Skill libraries.** Browse, copy and migrate skill folders between agents, plus a cross-agent `.agents/skills` shared convention.
+- **Local-first.** Binds to `127.0.0.1` only. No account, no cloud, no upload.
+
+Quick start (Node ≥ 20):
+
+```bash
+npx agent-mem ui          # opens the web UI over your real agent data
+npx agent-mem ui --demo   # tour the UI in a throwaway sandbox, touches nothing real
+```
+
+## What it manages
+
+Static memory is the Markdown these agents read on startup, so editing the files directly is reliable:
+
+| Agent | Global | Project | Sessions |
 | --- | --- | --- | --- |
-| Claude Code | `~/.claude/CLAUDE.md` | `CLAUDE.md`、`.claude/CLAUDE.md`、`CLAUDE.local.md`，以及 `~/.claude/projects/<项目>/memory/*.md` | `~/.claude/projects/<项目>/*.jsonl` |
-| Codex | `~/.codex/AGENTS.md` | `AGENTS.md`（`AGENTS.override.md` 优先） | `~/.codex/sessions/**/*.jsonl` |
-| Pi | `~/.pi/agent/AGENTS.md` | `AGENTS.md`、`CLAUDE.md` | `~/.pi/agent/sessions/--<项目>--/*.jsonl` |
-| Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`、`.gemini/GEMINI.md` | 不解析 |
-| Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | 不解析 |
-| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | 不解析 |
-| ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | 不解析 |
-| Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`、`AGENTS.local.md`、`.qoder/rules/*.md` | 不解析 |
+| Claude Code | `~/.claude/CLAUDE.md` | `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, plus `~/.claude/projects/<project>/memory/*.md` | `~/.claude/projects/<project>/*.jsonl` |
+| Codex | `~/.codex/AGENTS.md` | `AGENTS.md` (`AGENTS.override.md` wins) | `~/.codex/sessions/**/*.jsonl` |
+| Pi | `~/.pi/agent/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` | `~/.pi/agent/sessions/--<project>--/*.jsonl` |
+| Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`, `.gemini/GEMINI.md` | not parsed |
+| Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | not parsed |
+| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | not parsed |
+| ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | not parsed |
+| Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | not parsed |
+| DeepSeek Harness | `~/.dsh/AGENTS.md`, `~/.agents/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` (plus `.local` variants) | not parsed |
 
-同一个文件被多个 agent 读取时（项目里的 `AGENTS.md` 同时属于 Codex、Pi、opencode、ZCode 和 Qoder），界面只把它算作一份，并标出「also read by」。
+When several agents read the same file (the project's `AGENTS.md` belongs to Codex, Pi, opencode, ZCode, Qoder and DeepSeek Harness at once), the UI counts it once and marks it "also read by".
 
-工作记忆不一样。会话是各家自己的 JSONL，没法塞进另一个 agent 正在进行的对话里。拖过去时先按原文预览，点 Summarize 才整理成交接摘要（目标、后续要求、改过的文件、跑过的命令、最后状态），写到目标 agent 下一次启动会读到的位置，并在写入前打码疑似密钥。摘要优先用本机已装 agent 自己的 CLI（目标 agent → 来源 agent → 其他已装 agent，如 `claude -p`、`pi -p`、`codex exec`，无需任何 API Key），其次才用配置了 `AGENT_MEM_LLM_API_KEY` 的 OpenAI 兼容接口；没有可用模型时用规则摘要。`AGENT_MEM_LLM_MODE=api|local` 可以强制只走某一条通道。`agent-mem handoff` 走摘要，`agent-mem transfer` 默认原文，加上 `--summarize` 才摘要。
+Working memory is different. Sessions are per-agent JSONL transcripts and cannot be injected into another agent's live conversation. Dragging one across shows a raw preview first; press Summarize to turn it into a handoff note (goals, follow-up requirements, changed files, commands run, final state) written where the target agent will read it on next start, with suspected secrets masked before writing. Summarization prefers a locally installed agent CLI (target agent → source agent → any other installed agent, e.g. `claude -p`, `pi -p`, `codex exec` — no API key needed), then falls back to an OpenAI-compatible endpoint configured via `AGENT_MEM_LLM_API_KEY`, and finally to a rule-based summary. `AGENT_MEM_LLM_MODE=api|local` forces one channel. `agent-mem handoff` always summarizes; `agent-mem transfer` copies verbatim unless you pass `--summarize`.
 
-## 界面
+## The UI
 
-`agent-mem ui` 会在本地起一个网页。
+`agent-mem ui` serves a local web app.
 
-- **Board**：每个 agent 一列。点开卡片编辑 Markdown，保存前可以看 diff。把卡片拖到另一列会先弹出预览，确认后才写入。拖指令文件是一次性复制；拖会话会生成交接文档。
-- **Skills**：独立的技能库视图（不占 Board）。每个 agent 一列：`~/.claude/skills`、`~/.codex/skills`、`~/.pi/agent/skills`、`~/.zcode/skills`、`~/.qoder/skills` 和项目级 `.claude/skills`，外加跨 agent 共用的 `.agents/skills`（全局与项目级，带 shared 标记）。点卡片查看/编辑 SKILL.md；一键在库间复制或迁移（迁移 = 复制后删源，全程可撤销），也可整目录删除（先打包备份）。对 `.agents` 共用库的删除/移出会给出显著警告。
-- **搜索**：顶栏搜索框按标题、路径、内容过滤 Board 卡片、matrix 行和 Skills 卡片（按 `/` 聚焦，Esc 清空）。
-- **Share matrix**：一行一条记忆，一列一个 agent。点空格子即可授权。已经在读这个文件的 agent 显示为实心勾，点不了。
-- **History**：每次写入都会先备份，可以单条撤销。
-- **Agents 勾选**：侧边栏的 Agents 区块按 agent 勾选，取消勾选即隐藏 Board 列和 matrix 列（保存在浏览器本地，新装的 agent 默认显示）。
+- **Board**: one column per agent. Open a card to edit Markdown with a diff before saving. Dragging a card to another column shows a preview first and only writes on confirm. Dragging an instruction file is a one-time copy; dragging a session produces a handoff document.
+- **Skills**: a dedicated skill-library view (separate from the Board), one column per agent: `~/.claude/skills`, `~/.codex/skills`, `~/.pi/agent/skills`, `~/.zcode/skills`, `~/.qoder/skills`, `~/.dsh/skills`, project-level `.claude/skills`, plus the cross-agent `.agents/skills` (global and project, marked shared). Open a card to view/edit SKILL.md; copy or migrate between libraries in one click (migrate = copy then remove source, undoable throughout), or delete a whole folder (backed up first). Destructive actions on the shared `.agents` library get a prominent warning.
+- **Search**: the top bar filters Board cards, matrix rows and Skills cards by title, path or content (`/` to focus, Esc to clear).
+- **Share matrix**: one row per memory, one column per agent. Click an empty cell to grant access; agents already reading the file show a solid check and cannot be toggled.
+- **History**: every write is backed up first and can be undone individually.
+- **Projects / Agents sidebar**: projects are auto-discovered from session logs, or added manually via a native folder picker and removable from the list; the Agents section toggles Board and matrix columns per agent (stored in the browser; newly installed agents default to visible). The whole sidebar collapses to give the board more room.
+- **Theme & language**: the UI ships in English and Chinese, with dark and light themes; both are switchable from the top bar and remembered per browser.
 
-授权有三种写法，矩阵里可以指定，不指定就按顺序自动选：
+Sharing supports three strategies, selectable in the matrix (otherwise auto-chosen in order):
 
-1. `import`，在 Claude Code 里加一行 `@路径`，源文件一改，它读到的就是新的。
-2. `symlink`，目标文件还不存在时，直接链到源文件。
-3. `copy`，把内容写进目标文件里一段 `<!-- agent-mem:begin -->` 标记的区块。源文件变化后会自动同步，你手写的其余部分留着不动。
+1. `import` — adds an `@path` line (Claude Code); when the source changes, the agent reads the new content.
+2. `symlink` — when the target file does not exist yet, link it straight to the source.
+3. `copy` — writes the content into a `<!-- agent-mem:begin -->` marked block inside the target file. Auto-synced when the source changes; the rest of your hand-written file is left alone.
 
-## 安装与运行
+## Install & run
 
-需要 Node 20 以上。
+Requires Node 20+.
+
+```bash
+npx agent-mem ui
+```
+
+To look around without any of these agents installed:
+
+```bash
+npx agent-mem ui --demo
+```
+
+`--demo` uses a throwaway directory and never reads your real `~/.claude`, `~/.codex`, `~/.pi`.
+
+Running from source (for development):
 
 ```bash
 pnpm install
@@ -50,32 +85,25 @@ pnpm build
 pnpm ui
 ```
 
-没有安装这些 agent、只想看看界面时：
+## CLI
+
+Every UI action has a command. By default only the planned writes and diffs are printed; `--yes` writes to disk. Without `--yes`, the terminal asks once more.
 
 ```bash
-pnpm ui -- --demo --no-open
-```
-
-`--demo` 使用一个临时目录，不会读你真实的 `~/.claude`、`~/.codex`、`~/.pi`。
-
-## 命令行
-
-界面上的操作都有对应命令。默认只打印将要写入的内容和 diff，加上 `--yes` 才会写盘。在终端里不加 `--yes` 时会再问一次。
-
-```bash
-agent-mem agents                   # 支持的 agent 及安装状态
-agent-mem agents add <id> ...      # 注册自定义 agent（--display --home --project-file --imports）
-agent-mem agents remove <id>       # 移除自定义 agent（内置 agent 不可移除）
-agent-mem doctor                   # 体检：agent 检测、数据目录、share 一致性、孤儿备份
-agent-mem clean                    # 删除历史已不引用的备份快照
-agent-mem export -p . -o mem.json  # 项目记忆打包（含 share 关系）
-agent-mem import mem.json -p ~/code/shop-api   # 恢复到另一个目录/机器
-agent-mem ls                       # 发现到的项目
-agent-mem ls -p ~/code/shop-api    # 这个项目下的全部记忆
-agent-mem skills ls -p .           # 各库技能清单（shared = .agents 共用库）
+agent-mem agents                   # supported agents and install status
+agent-mem agents add <id> ...      # register a custom agent (--display --home --project-file --imports)
+agent-mem agents remove <id>       # remove a custom agent (built-ins cannot be removed)
+agent-mem doctor                   # health check: detection, data dirs, share consistency, orphan backups
+agent-mem clean                    # drop backup snapshots no longer referenced
+agent-mem export -p . -o mem.json  # bundle project memories (incl. share relations)
+agent-mem import mem.json -p ~/code/shop-api   # restore into another directory/machine
+agent-mem ls                       # discovered projects
+agent-mem ls -p ~/code/shop-api    # all memories of one project
+agent-mem skills ls -p .           # skill inventory per library (shared = .agents)
+agent-mem skills libraries         # available skill library ids (values for migrate --to)
 agent-mem skills migrate <name> --to claude-code [--move] [--overwrite] -p . --yes
-agent-mem skills rm <name> -p . --yes   # 整目录删除，先备份，可 undo
-agent-mem search <text> -p .       # 按标题/路径/内容搜记忆（含行号，--json 可选）
+agent-mem skills rm <name> -p . --yes   # delete a skill folder, backed up, undoable
+agent-mem search <text> -p .       # search memories by title/path/content (with line numbers, --json)
 agent-mem link codex:AGENTS.md --to claude -p . --yes
 agent-mem link ~/.claude/CLAUDE.md --to codex,pi --global --strategy copy --yes
 agent-mem shares
@@ -85,25 +113,26 @@ agent-mem handoff --from codex --to pi --session <id> --yes
 agent-mem transfer codex:AGENTS.md --to claude -p . --summarize --yes
 agent-mem edit claude:CLAUDE.md -p . --file ./CLAUDE.md
 agent-mem sync
-agent-mem undo                     # 撤销最近一次写入
+agent-mem undo                     # undo the most recent write
+agent-mem history                  # recorded writes and undos
 agent-mem projects add ~/code/app
 ```
 
-`claude` 是 `claude-code` 的别名，`gemini-cli` 是 `gemini` 的别名，`oc` 是 `opencode` 的别名。记忆可以用 `ls` 输出的 id、文件路径，或者 `agent:相对路径`。
+`claude` is an alias of `claude-code`, `gemini-cli` of `gemini`, `oc` of `opencode`. Memories can be addressed by the id from `ls`, by file path, or as `agent:relative-path`.
 
-## 接入别的 agent
+## Adding your own agent
 
-DeepSeek harness 这类「读某个 Markdown」的工具不用改代码。在 `~/.agent-mem/config.json` 里声明它读哪些文件：
+Any tool that "reads some Markdown" needs no code change — DeepSeek Harness was built in exactly this way. Declare which files your tool reads in `~/.agent-mem/config.json`:
 
 ```json
 {
   "projects": ["/home/you/extra-project"],
   "agents": [
     {
-      "id": "deepseek",
-      "displayName": "DeepSeek harness",
-      "homeDir": "~/.deepseek",
-      "globalFile": "~/.deepseek/AGENTS.md",
+      "id": "my-cli",
+      "displayName": "My CLI agent",
+      "homeDir": "~/.my-cli",
+      "globalFile": "~/.my-cli/AGENTS.md",
       "projectFiles": ["AGENTS.md"],
       "imports": false
     }
@@ -111,32 +140,32 @@ DeepSeek harness 这类「读某个 Markdown」的工具不用改代码。在 `~
 }
 ```
 
-`homeDir` 存在才算已安装。更复杂的读取逻辑可以用 `plugins` 指向一个 ESM 模块，默认导出 `(ctx) => AgentAdapter`。
+The agent counts as installed once `homeDir` exists. For more complex read logic, point `plugins` at an ESM module whose default export is `(ctx) => AgentAdapter`.
 
-模型摘要默认走本机 agent CLI；想用托管接口时通过环境变量配置，不写进参数，避免留在 shell 历史里：
+Summaries default to local agent CLIs; to use a hosted endpoint, configure it through environment variables rather than flags so it never lands in shell history:
 
 ```bash
 export AGENT_MEM_LLM_API_KEY=...
-export AGENT_MEM_LLM_BASE_URL=https://api.deepseek.com   # 可选，默认 OpenAI
-export AGENT_MEM_LLM_MODEL=deepseek-chat                 # 可选
+export AGENT_MEM_LLM_BASE_URL=https://api.deepseek.com   # optional, defaults to OpenAI
+export AGENT_MEM_LLM_MODEL=deepseek-chat                 # optional
 ```
 
-## 开发
+## Development
 
 ```bash
 pnpm test          # vitest
 pnpm typecheck
 pnpm lint
-pnpm --filter @agent-mem/web dev   # 前端热更新，接口代理到 4477
+pnpm --filter @agent-mem/web dev   # web hot reload, API proxied to 4477
 ```
 
-仓库是 pnpm workspace：`packages/core` 是适配器和写入计划，`packages/server` 是只绑定本机的 Hono 服务（含文件监听和 SSE），`packages/web` 是 React 界面，`packages/cli` 是 `agent-mem` 命令。
+The repo is a pnpm workspace: `packages/core` holds adapters and write plans, `packages/server` is the localhost-only Hono service (file watching + SSE), `packages/web` is the React UI, `packages/cli` is the `agent-mem` command.
 
-写入前会比对你打开文件时的内容哈希，磁盘上的版本已经变了就拒绝覆盖。备份在 `~/.agent-mem/backups/`。服务会拒绝不是来自本机的 Host 和跨站的写请求。
+Before every write, agent-mem compares the content hash from when you opened the file and refuses to overwrite if the on-disk version changed. Backups live in `~/.agent-mem/backups/`. The server rejects non-local Host headers and cross-site writes.
 
-## 边界
+## Limits
 
-- 各 agent 的目录结构会随版本变化。适配器用公开的路径约定，并带了三家会话格式的样例测试；对不上时优先看 `ls` 读到了什么。
-- 交接文档是给「下一次启动」读的，不会改写一个已经打开的会话。
-- 复制和交接会扫描常见的密钥格式并打码，但不能代替你自己看一遍 diff。
-- 界面中的 agent 图标取自各家官方素材（`packages/web/public/agents/`），仅用于标识对应产品；其版权归 Anthropic、OpenAI、Pi (pi.dev)、Google、Cursor、opencode、Z.ai、Qoder 各自所有。ZCode 官方暂未发布 SVG，使用其官方透明 PNG。
+- Agent directory layouts change across versions. Adapters follow the public path conventions and carry sample-format tests for three session formats; when something doesn't line up, check what `ls` reads first.
+- Handoff documents are written for the "next startup"; a live session is never rewritten.
+- Copies and handoffs scan for common secret formats and mask them, but that does not replace reviewing the diff yourself.
+- Agent icons in the UI come from each vendor's official assets (`packages/web/public/agents/`) and are used only to identify the products; copyright belongs to Anthropic, OpenAI, Pi (pi.dev), Google, Cursor, opencode, Z.ai and Qoder respectively. ZCode has no official SVG yet, so its official transparent PNG is used.

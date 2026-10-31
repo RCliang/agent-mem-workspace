@@ -12,7 +12,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -22,5 +24,18 @@
     "@hono/node-server": "^1.19.0",
     "chokidar": "^4.0.3",
     "hono": "^4.10.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RCliang/agent-mem-workspace.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RCliang/agent-mem-workspace/issues"
+  },
+  "keywords": [
+    "agent",
+    "memory",
+    "hono",
+    "local-first"
+  ]
 }

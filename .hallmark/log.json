@@ -1,0 +1,67 @@
+[
+ {
+  "shape": "app screen",
+  "theme": "Dusk (by request)",
+  "axes": "slate dark glass/Wix Madefor/periwinkle-apricot signals · posture: Committed",
+  "hero": "single-row workspace toolbar and shared memories over an adaptive drag-and-drop grid",
+  "nav": "single-row workspace toolbar with ruled Sidebar view navigation",
+  "footer": "none; operational app screen",
+  "imagery": "kept favicon and official agent artwork only",
+  "photos": [],
+  "entry": "/",
+  "fingerprint": "agent-mem-dusk-full-app-redesign-2026-10-28",
+  "sections": [
+   "Board",
+   "Skills",
+   "Share matrix",
+   "History",
+   "Editor drawers",
+   "Plan dialog"
+  ],
+  "signature": "shared memories over an adaptive drag-and-drop grid",
+  "waived": [],
+  "prompt": "/hallmark 使用风格Dusk再优化一版; preserve all content and wiring",
+  "date": "2026-10-28",
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "app",
+  "verification": {
+   "static": "0 FAIL, 0 REFLEX, 0 WARN; kept links 1/1 and handlers 101/101",
+   "project": "web typecheck, lint, 2 tests, production build and git diff --check passed",
+   "finishReview": "fix; 4 source findings resolved",
+   "visualCapture": "unavailable: in-app browser viewport 0x0; Hallmark puppeteer-core not installed",
+   "browser": "four views, adaptive grids, editor open/close and mobile sidebar focus/inert/Escape behavior passed via DOM"
+  }
+ },
+ {
+  "shape": "app screen",
+  "theme": "brand",
+  "axes": "warm dark paper/IBM Plex/amber signal · posture: Restrained",
+  "hero": "two-row workspace header and live drag-and-drop memory board",
+  "nav": "two-row workspace header with kept project sidebar and explicit view navigation",
+  "footer": "none; operational app screen",
+  "imagery": "kept favicon and official agent artwork only",
+  "photos": [],
+  "entry": "/",
+  "fingerprint": "agent-mem-full-app-redesign-2026-10-28",
+  "sections": [
+   "Board",
+   "Skills",
+   "Share matrix",
+   "History",
+   "Editor drawers",
+   "Plan dialog"
+  ],
+  "signature": "live drag-and-drop memory columns",
+  "waived": [],
+  "prompt": "/hallmark redesign — go ahead; preserve all content and wiring",
+  "date": "2026-10-28",
+  "mode": "build",
+  "verification": {
+   "static": "0 FAIL, 0 REFLEX, 0 WARN",
+   "finishReview": "recapture; five source findings resolved",
+   "visualCapture": "unavailable: in-app browser viewport 0x0; Hallmark puppeteer-core not installed",
+   "browser": "structural interactions passed; no console errors or warnings"
+  }
+ }
+]

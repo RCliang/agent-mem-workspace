@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
-import { constants as fsConstants, readFileSync } from 'node:fs';
+import { constants as fsConstants, existsSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import readline from 'node:readline/promises';
 import { createTwoFilesPatch } from 'diff';
 import { Command, CommanderError } from 'commander';
@@ -164,7 +165,11 @@ export function buildProgram(io: Io): Command {
       const hub = demo ? await Hub.create(demo.ctx) : await openHub();
       const port = Number(opts.port);
       if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`Invalid port: ${opts.port}`);
-      const server = await startServer({ hub, port, host: opts.host, watch: opts.watch });
+      // The web bundle ships inside this package (packages/cli/web-dist); the
+      // server's repo-layout fallback only exists in a dev checkout.
+      const bundled = fileURLToPath(new URL('../web-dist', import.meta.url));
+      const webDist = existsSync(bundled) ? bundled : undefined;
+      const server = await startServer({ hub, port, host: opts.host, watch: opts.watch, webDist });
       if (demo) io.stdout(`Demo data lives in ${demo.root} and is not your real home directory.\n`);
       io.stdout(`agent-mem is running at ${server.url}\n`);
       if (opts.open) openBrowser(server.url);
