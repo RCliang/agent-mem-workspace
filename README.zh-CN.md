@@ -10,7 +10,7 @@
 npx agent-mem ui          # 在你的真实 agent 数据上打开界面
 npx agent-mem ui --demo   # 用一次性沙盒逛界面，不碰任何真实数据
 ```
-
+https://github.com/user-attachments/assets/35be245a-d86e-4f83-8438-97e660956099
 ## 它能做什么
 
 静态记忆就是这些 agent 启动时会读的 Markdown，所以直接改文件是可靠的：
