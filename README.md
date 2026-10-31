@@ -20,8 +20,6 @@ agent-mem brings the instruction files, skill libraries, and session logs scatte
 
 https://github.com/user-attachments/assets/52437a36-500a-4212-ae2a-017e961e6925
 
-[Watch the Chinese demo](https://github.com/user-attachments/assets/35be245a-d86e-4f83-8438-97e660956099)
-
 ## Quick start
 
 Requires **Node.js 20+**. This opens a local web app:
