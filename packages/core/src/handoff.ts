@@ -17,6 +17,39 @@ const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
 const EDIT_TOOLS = /^(edit|write|multiedit|multi_edit|notebookedit|apply_patch|str_replace|create|update)/i;
 const SHELL_TOOLS = /^(bash|shell|exec|exec_command|local_shell|run|terminal)/i;
 
+/** Tool output that clearly reports a failure. */
+const FAILURE_MARKERS = /(exit code [1-9]\d*|command failed|\berror\b|\bfailed\b|\bfailures?\b|traceback|exception|ENOENT|EACCES|not found|panic)/i;
+/** Assistant prose spelling out a dead end. */
+const FAILURE_TALK =
+  /\b(didn'?t work|does(?:n'?t| not) work|won'?t work|failed|failure|no luck|dead end|not supported|gave up|wrong approach|backed out|revert(ed)? (it|the change))/i;
+
+/**
+ * Dead ends worth carrying over: tool calls whose output reports a failure, and
+ * assistant lines that spell one out. Without them the next agent retries as-is.
+ */
+export function failedAttempts(session: ParsedSession): string[] {
+  const out: string[] = [];
+  const msgs = session.messages;
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i]!;
+    if (m.toolCalls.length) {
+      // Tool results follow the call message until the next turn.
+      let resultText = '';
+      for (let j = i + 1; j < msgs.length && msgs[j]!.role === 'tool'; j++) resultText += `${msgs[j]!.text}\n`;
+      if (resultText && FAILURE_MARKERS.test(resultText)) {
+        const reason = resultText.split('\n').find((l) => FAILURE_MARKERS.test(l) && l.trim()) ?? '';
+        const label = m.toolCalls.find((c) => c.target && (SHELL_TOOLS.test(c.name) || EDIT_TOOLS.test(c.name)))?.target;
+        if (label) out.push(`\`${oneLine(label)}\` — ${clip(reason.trim(), 140)}`);
+      }
+    }
+    if (m.role === 'assistant' && m.text) {
+      const line = m.text.split('\n').find((l) => FAILURE_TALK.test(l) && l.trim().length > 12);
+      if (line) out.push(clip(oneLine(line), 200));
+    }
+  }
+  return [...new Set(out)].slice(-10);
+}
+
 /** Deterministic summary that works offline; the LLM path refines it when configured. */
 export function summarizeSession(session: ParsedSession, sourceName: string, now = new Date()): string {
   const users = session.messages.filter((m) => m.role === 'user' && m.text);
@@ -62,6 +95,13 @@ export function summarizeSession(session: ParsedSession, sourceName: string, now
     lines.push('## Commands run');
     for (const c of commands.slice(-15)) lines.push(`- \`${clip(c, 160)}\``);
   }
+  const failed = failedAttempts(session);
+  if (failed.length) {
+    lines.push('');
+    lines.push('## Failed attempts');
+    lines.push('Dead ends from this session - check them before retrying anything similar.');
+    for (const f of failed) lines.push(`- ${f}`);
+  }
   lines.push('');
   lines.push('## Latest status');
   const last = assistants.at(-1);
@@ -75,8 +115,8 @@ export function summarizeSession(session: ParsedSession, sourceName: string, now
 
 const HANDOFF_SYSTEM =
   'You write handoff notes between coding agents. Rewrite the draft into a concise Markdown handoff with the same section headings ' +
-  '(Goal, Follow-up requests, Files changed, Commands run, Latest status, Next steps). Keep the first heading and the quoted provenance line unchanged. ' +
-  'State decisions, open problems and concrete next steps. Never include secrets.';
+  '(Goal, Follow-up requests, Files changed, Commands run, Failed attempts, Latest status, Next steps). Keep the first heading and the quoted provenance line unchanged. ' +
+  'State decisions, open problems, concrete next steps, and keep the Failed attempts section intact so the reader does not retry known dead ends. Never include secrets.';
 
 /** Calls an OpenAI-compatible chat endpoint configured through AGENT_MEM_LLM_* env vars. */
 export async function llmSummarize(ctx: Context, draft: string, transcript: string, system = HANDOFF_SYSTEM): Promise<string> {

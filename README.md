@@ -45,7 +45,7 @@ npx @liangstech/agent-mem ui --demo
 | Find your agents' memories | Browse global and project instructions. Files read by several agents appear once. |
 | Edit with confidence | Edit Markdown, review the diff, and undo writes from automatic backups. |
 | Reuse rules across agents | Share through `import`, `symlink`, or `copy`, with changes kept in sync. |
-| Continue with another agent | Turn a session into a handoff note with goals, files, commands, and current state. |
+| Continue with another agent | Turn a session into a handoff note with goals, files, commands, failed attempts, and current state. |
 | Organize skills | Browse, edit, copy, or migrate skill folders, including shared `.agents/skills` libraries. |
 | Work your way | English and Chinese UI, dark and light themes, plus CLI commands. |
 
@@ -120,7 +120,7 @@ Sharing supports three strategies, selectable in the matrix (otherwise auto-chos
 
 ### Hand off a session
 
-Working memory is different. Sessions are per-agent JSONL transcripts and cannot be injected into another agent's live conversation. Dragging one across shows a raw preview first; press Summarize to turn it into a handoff note (goals, follow-up requirements, changed files, commands run, final state) written where the target agent will read it on next start, with suspected secrets masked before writing.
+Working memory is different. Sessions are per-agent JSONL transcripts and cannot be injected into another agent's live conversation. Dragging one across shows a raw preview first; press Summarize to turn it into a handoff note (goals, follow-up requirements, changed files, commands run, failed attempts, final state) written where the target agent will read it on next start, with suspected secrets masked before writing. Failed attempts lists tool calls whose output reports an error (exit codes, tracebacks, "not found") plus lines where the agent admits a dead end, so the next agent does not retry them as-is.
 
 Summarization prefers a locally installed agent CLI (target agent → source agent → any other installed agent, e.g. `claude -p`, `pi -p`, `codex exec` — no API key needed), then falls back to an OpenAI-compatible endpoint configured via `AGENT_MEM_LLM_API_KEY`, and finally to a rule-based summary.
 

@@ -84,11 +84,43 @@ describe('handoff', () => {
     expect(doc).toContain('- `src/pages/Settings.tsx` (apply_patch)');
     expect(doc).toContain("- `rg -n 'class Settings' src`");
     expect(doc).toContain('ProfileForm child is still a class component');
+    expect(doc).toContain('## Failed attempts');
+    expect(doc).toContain('`pnpm test --filter settings` — ELIFECYCLE Command failed with exit code 1');
     expect(doc).toContain('## Next steps');
 
     const index = read(path.join(memDir, 'MEMORY.md'));
     expect(index).toMatch(/^# Memory index/);
     expect(index).toContain('](handoff-codex-0199c1d2-cod.md)');
+  });
+
+  it('summarizes failed attempts without flagging successful ones', async () => {
+    const { summarizeSession, failedAttempts } = await import('@agent-mem/core');
+    const session = {
+      agent: 'claude-code',
+      filePath: '/x.jsonl',
+      sessionId: 's1',
+      cwd: '/work/shop-api',
+      startedAt: '2026-10-22T09:00:00.000Z',
+      messages: [
+        { role: 'user' as const, text: 'Make the toggle test pass', toolCalls: [] },
+        { role: 'assistant' as const, text: '', toolCalls: [{ name: 'Bash', target: 'pnpm test' }] },
+        { role: 'tool' as const, text: 'All 12 tests passed', toolCalls: [] },
+        { role: 'assistant' as const, text: '', toolCalls: [{ name: 'Bash', target: 'pnpm test --filter toggle' }] },
+        { role: 'tool' as const, text: 'Command failed with exit code 1\nAssertionError: toggle not found', toolCalls: [] },
+        { role: 'assistant' as const, text: 'Mocking the store didn\'t work; the component reads the theme from props instead.', toolCalls: [] },
+      ],
+    };
+    const failed = failedAttempts(session);
+    expect(failed).toHaveLength(2);
+    expect(failed[0]).toContain('`pnpm test --filter toggle` — Command failed with exit code 1');
+    expect(failed[1]).toMatch(/didn't work/);
+    expect(failed.join(' ')).not.toContain('All 12 tests passed');
+
+    const doc = summarizeSession(session, 'Claude Code', now);
+    expect(doc).toContain('## Failed attempts');
+    expect(doc).toContain('`pnpm test --filter toggle` — Command failed with exit code 1');
+    expect(doc).toMatch(/didn't work/);
+    expect(doc).not.toContain('`pnpm test` —');
   });
 
   it('inlines a Claude session into AGENTS.md for Pi and masks secrets', async () => {

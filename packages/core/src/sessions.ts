@@ -69,6 +69,16 @@ function extractContent(content: unknown): Extracted {
         sawOther = true;
       } else if (type === 'tool_result' || type === 'toolResult') {
         sawResult = true;
+        // Tool output text feeds the handoff's failed-attempt detection.
+        const out = (part as { content?: unknown }).content;
+        if (typeof out === 'string') texts.push(out);
+        else if (Array.isArray(out)) {
+          for (const o of out) {
+            if (o && typeof o === 'object' && !Array.isArray(o) && (o as { type?: unknown }).type === 'text' && typeof (o as { text?: unknown }).text === 'string') {
+              texts.push((o as { text: string }).text);
+            }
+          }
+        }
       }
     }
   }
@@ -135,9 +145,26 @@ export function parseRecord(obj: unknown): SessionMessage | undefined {
     };
   }
   if (item.type === 'function_call_output' || item.type === 'custom_tool_call_output') {
-    return { role: 'tool', text: '', toolCalls: [], timestamp };
+    return { role: 'tool', text: outputText(item.output ?? item.result), toolCalls: [], timestamp };
   }
   return undefined;
+}
+
+/** Codex wraps tool output as a plain string or as {"output": "..."} JSON text. */
+function outputText(value: unknown): string {
+  if (typeof value === 'string') {
+    const parsed = safeJson(value);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const inner = (parsed as { output?: unknown }).output;
+      if (typeof inner === 'string') return inner;
+    }
+    return value;
+  }
+  if (value && typeof value === 'object') {
+    const inner = (value as { output?: unknown }).output;
+    if (typeof inner === 'string') return inner;
+  }
+  return '';
 }
 
 export function isSyntheticText(text: string): boolean {
