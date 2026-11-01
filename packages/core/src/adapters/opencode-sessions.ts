@@ -1,15 +1,32 @@
 import path from 'node:path';
 import type { Context } from '../context.js';
-import { idFor, listDir, readText, safeJson } from '../fsutil.js';
+import { exists, idFor, listDir, readText, safeJson } from '../fsutil.js';
 import type { MemoryItem, ParsedSession, ProjectInfo, SessionMessage } from '../types.js';
 import { MAX_SESSIONS_PER_PROJECT } from './common.js';
+import { openReadonly, sqlAll } from './sqlite.js';
 
 const AGENT = 'opencode';
 
-/** opencode stores sessions and messages as JSON under XDG data (legacy file storage). */
+/** opencode stores sessions and messages under XDG data: JSON files, or SQLite in newer builds. */
 export function opencodeStorage(ctx: Context): string {
   const dataRoot = ctx.env.OPENCODE_DATA_DIR ?? (ctx.env.XDG_DATA_HOME && path.isAbsolute(ctx.env.XDG_DATA_HOME) ? ctx.env.XDG_DATA_HOME : path.join(ctx.home, '.local', 'share'));
   return path.join(dataRoot, 'opencode', 'storage');
+}
+
+function opencodeDataRoot(ctx: Context): string {
+  return path.dirname(opencodeStorage(ctx));
+}
+
+/** Channel-named databases (opencode.db, opencode-<channel>.db) live next to storage/. */
+async function opencodeDbFiles(ctx: Context): Promise<string[]> {
+  const dir = opencodeDataRoot(ctx);
+  const out: string[] = [];
+  for (const name of await listDir(dir)) {
+    if (!/^opencode.*\.db$/.test(name)) continue;
+    const file = path.join(dir, name);
+    if (await exists(file)) out.push(file);
+  }
+  return out.sort();
 }
 
 interface SessionFile {
@@ -35,8 +52,42 @@ function asMs(v: unknown): number {
 }
 
 async function readSessions(ctx: Context): Promise<SessionFile[]> {
+  const byId = new Map<string, SessionFile>();
+
+  // Newer builds keep sessions in SQLite (session/message/part tables, JSON in data columns).
+  for (const dbFile of await opencodeDbFiles(ctx)) {
+    const db = openReadonly(dbFile);
+    if (!db) continue;
+    try {
+      const rows = sqlAll(
+        db,
+        `SELECT id, directory, title, time_created, time_updated FROM session
+         WHERE directory IS NOT NULL AND directory != ''
+         ORDER BY time_updated DESC`,
+      );
+      for (const row of rows) {
+        const id = typeof row.id === 'string' ? row.id : '';
+        const directory = typeof row.directory === 'string' ? row.directory : '';
+        if (!id || !directory) continue;
+        const title = typeof row.title === 'string' ? row.title : '';
+        byId.set(id, {
+          id,
+          directory,
+          title,
+          createdMs: asMs(row.time_created),
+          updatedMs: asMs(row.time_updated) || asMs(row.time_created),
+          filePath: path.join(opencodeStorage(ctx), 'session', `${id}.json`),
+        });
+      }
+    } catch {
+      // A database without the expected schema is not ours to read.
+    } finally {
+      db.close();
+    }
+  }
+
+  // Older builds store one JSON file per session; same ids keep their existing entry.
   const dir = path.join(opencodeStorage(ctx), 'session');
-  const out: SessionFile[] = [];
   for (const name of await listDir(dir)) {
     if (!name.endsWith('.json')) continue;
     const filePath = path.join(dir, name);
@@ -44,19 +95,12 @@ async function readSessions(ctx: Context): Promise<SessionFile[]> {
     if (!parsed) continue;
     const id = typeof parsed.id === 'string' && parsed.id ? parsed.id : name.replace(/\.json$/, '');
     const directory = typeof parsed.directory === 'string' ? parsed.directory : '';
-    if (!directory) continue;
+    if (!directory || byId.has(id)) continue;
     const time = asObj(parsed.time) ?? {};
     const title = typeof parsed.title === 'string' ? parsed.title : '';
-    out.push({
-      id,
-      directory,
-      title,
-      createdMs: asMs(time.created),
-      updatedMs: asMs(time.updated) || asMs(time.created),
-      filePath,
-    });
+    byId.set(id, { id, directory, title, createdMs: asMs(time.created), updatedMs: asMs(time.updated) || asMs(time.created), filePath });
   }
-  return out;
+  return [...byId.values()];
 }
 
 export async function listOpencodeProjects(ctx: Context): Promise<ProjectInfo[]> {
@@ -160,14 +204,15 @@ export async function listOpencodeSessions(ctx: Context, projectPath: string): P
   return items;
 }
 
-export async function parseOpencodeSession(ctx: Context, filePath: string): Promise<ParsedSession> {
-  const parsed = asObj(safeJson((await readText(filePath)) ?? '{}'));
-  const sessionId = parsed && typeof parsed.id === 'string' && parsed.id ? parsed.id : path.basename(filePath, '.json');
-  const directory = parsed && typeof parsed.directory === 'string' ? parsed.directory : null;
-  const time = parsed ? asObj(parsed.time) : null;
-  const startedAtMs = time ? asMs(time.created) : 0;
+/** One message with its parts, however they were stored. */
+interface RawMessage {
+  role: 'user' | 'assistant';
+  time: string | undefined;
+  parts: unknown[];
+}
 
-  const messages: SessionMessage[] = [];
+async function fileMessages(ctx: Context, sessionId: string): Promise<RawMessage[]> {
+  const out: RawMessage[] = [];
   const files = await messageFiles(ctx, sessionId);
   const timed: { file: string; at: number }[] = [];
   for (const f of files) {
@@ -178,22 +223,75 @@ export async function parseOpencodeSession(ctx: Context, filePath: string): Prom
   timed.sort((a, b) => a.at - b.at);
   for (const { file } of timed) {
     const m = asObj(safeJson((await readText(file)) ?? '{}'));
-    if (!m) continue;
-    const role = m.role === 'user' || m.role === 'assistant' ? (m.role as 'user' | 'assistant') : null;
-    if (!role) continue;
+    if (!m || (m.role !== 'user' && m.role !== 'assistant')) continue;
+    out.push({ role: m.role, time: asObj(m.time) && typeof (asObj(m.time) as { created?: unknown }).created === 'string' ? (asObj(m.time) as { created: string }).created : undefined, parts: Array.isArray(m.parts) ? m.parts : [] });
+  }
+  return out;
+}
+
+/** SQLite layout: message rows carry {role,...} JSON, parts live in their own table. */
+async function dbMessages(ctx: Context, sessionId: string): Promise<RawMessage[]> {
+  for (const dbFile of await opencodeDbFiles(ctx)) {
+    const db = openReadonly(dbFile);
+    if (!db) continue;
+    try {
+      const messages = sqlAll(
+        db,
+        `SELECT id, data FROM message WHERE session_id = ? ORDER BY time_created, rowid`,
+        sessionId,
+      );
+      if (!messages.length) continue;
+      const out: RawMessage[] = [];
+      for (const m of messages) {
+        const data = asObj(safeJson(typeof m.data === 'string' ? m.data : '{}'));
+        const role = data?.role === 'user' || data?.role === 'assistant' ? (data.role as 'user' | 'assistant') : null;
+        if (!role) continue;
+        const parts = sqlAll(
+          db,
+          `SELECT data FROM part WHERE message_id = ? ORDER BY time_created, rowid`,
+          typeof m.id === 'string' ? m.id : '',
+        ).flatMap((p) => (typeof p.data === 'string' ? [safeJson(p.data)] : []));
+        out.push({ role, time: undefined, parts });
+      }
+      return out;
+    } catch {
+      // Schema mismatch on this database; try the next one.
+    } finally {
+      db.close();
+    }
+  }
+  return [];
+}
+
+/** The working directory of a session that lives in SQLite (no file to read it from). */
+async function sessionDirectory(ctx: Context, sessionId: string): Promise<string | null> {
+  for (const s of await readSessions(ctx)) {
+    if (s.id === sessionId) return s.directory;
+  }
+  return null;
+}
+
+export async function parseOpencodeSession(ctx: Context, filePath: string): Promise<ParsedSession> {
+  const parsed = asObj(safeJson((await readText(filePath)) ?? '{}'));
+  const sessionId = parsed && typeof parsed.id === 'string' && parsed.id ? parsed.id : path.basename(filePath, '.json');
+  const directory = parsed && typeof parsed.directory === 'string' ? parsed.directory : null;
+  const time = parsed ? asObj(parsed.time) : null;
+  const startedAtMs = time ? asMs(time.created) : 0;
+
+  const raw = (await exists(filePath)) ? await fileMessages(ctx, sessionId) : await dbMessages(ctx, sessionId);
+  const messages: SessionMessage[] = [];
+  for (const m of raw) {
     const text = partsText(m.parts);
     const toolCalls = partsToolCalls(m.parts);
     if (!text && !toolCalls.length) continue;
-    const t = asObj(m.time);
-    const timestamp = t && typeof t.created === 'string' ? t.created : undefined;
-    messages.push({ role, text, toolCalls, ...(timestamp ? { timestamp } : {}) });
+    messages.push({ role: m.role, text, toolCalls, ...(m.time ? { timestamp: m.time } : {}) });
   }
 
   return {
     agent: AGENT,
     filePath,
     sessionId,
-    cwd: directory,
+    cwd: directory ?? (await sessionDirectory(ctx, sessionId)),
     ...(startedAtMs ? { startedAt: new Date(startedAtMs).toISOString() } : {}),
     messages,
   };

@@ -200,6 +200,81 @@ describe('vendor sessions', () => {
     expect(parsed.messages.at(-1)?.text).toBe('Pipeline ready.');
   });
 
+  it('reads an opencode session from the SQLite database of newer builds', async () => {
+    const { home, project } = homeFor('ocdb');
+    const data = path.join(home, '.local', 'share', 'opencode');
+    const dbFile = path.join(data, 'opencode.db');
+    fs.mkdirSync(data, { recursive: true });
+    const db = new DatabaseSync(dbFile);
+    db.exec(`
+      CREATE TABLE session (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        parent_id TEXT,
+        slug TEXT NOT NULL,
+        directory TEXT NOT NULL,
+        title TEXT NOT NULL,
+        version TEXT NOT NULL,
+        share_url TEXT,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL
+      );
+      CREATE TABLE message (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL,
+        data TEXT NOT NULL
+      );
+      CREATE TABLE part (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL,
+        data TEXT NOT NULL
+      );
+    `);
+    db.prepare('INSERT INTO session VALUES (?, ?, NULL, ?, ?, ?, ?, NULL, ?, ?)').run(
+      'ses_sql01',
+      'proj-1',
+      'shop',
+      project,
+      'Tune the export button',
+      '1.0.0',
+      1_760_000_000_000,
+      1_760_000_200_000,
+    );
+    db.prepare('INSERT INTO message VALUES (?, ?, ?, ?, ?)').run('sm1', 'ses_sql01', 1_760_000_000_000, 1_760_000_000_000, JSON.stringify({ role: 'user' }));
+    db.prepare('INSERT INTO message VALUES (?, ?, ?, ?, ?)').run('sm2', 'ses_sql01', 1_760_000_100_000, 1_760_000_100_000, JSON.stringify({ role: 'assistant' }));
+    db.prepare('INSERT INTO part VALUES (?, ?, ?, ?, ?, ?)').run('sp1', 'sm1', 'ses_sql01', 1, 1, JSON.stringify({ type: 'text', text: 'Tune the export button' }));
+    db.prepare('INSERT INTO part VALUES (?, ?, ?, ?, ?, ?)').run('sp2', 'sm2', 'ses_sql01', 2, 2, JSON.stringify({ type: 'text', text: 'Exports are debounced now.' }));
+    db.prepare('INSERT INTO part VALUES (?, ?, ?, ?, ?, ?)').run('sp3', 'sm2', 'ses_sql01', 3, 3, JSON.stringify({ type: 'tool', tool: 'write', state: { input: { filePath: 'src/export.ts' } } }));
+    db.close();
+
+    const ctx = createContext({ home, dataDir: path.join(home, '.agent-mem'), env: {} });
+    const adapter = opencodeAdapter(ctx);
+    const sessions = (await adapter.readMemories(project)).filter((item) => item.kind === 'session');
+    expect(sessions.map((item) => item.title)).toEqual(['Tune the export button']);
+    expect((await adapter.listProjects()).map((item) => item.path)).toEqual([project]);
+
+    const parsed = await adapter.parseSession!(sessions[0]!.filePath);
+    expect(parsed.sessionId).toBe('ses_sql01');
+    expect(parsed.cwd).toBe(project);
+    expect(parsed.messages.map((m) => [m.role, m.text])).toEqual([
+      ['user', 'Tune the export button'],
+      ['assistant', 'Exports are debounced now.'],
+    ]);
+    expect(parsed.messages[1]?.toolCalls).toEqual([{ name: 'write', target: 'src/export.ts' }]);
+
+    // The same session hands off like any other agent's.
+    const { Hub } = await import('@agent-mem/core');
+    const hub = await Hub.create(ctx);
+    const plan = await (await import('@agent-mem/core')).planTransfer(hub, sessions[0]!, 'claude-code', { render: 'summary' });
+    expect(plan.writes[0]?.after).toContain('# Handoff: shop (from opencode)');
+    expect(plan.writes[0]?.after).toContain('## Goal\nTune the export button');
+  });
+
   it('lists a Qoder jsonl session for the project', async () => {
     const { home, project } = homeFor('qoder');
     const file = path.join(home, '.qoder', 'projects', encodeQoderProject(project), 'session-q.jsonl');

@@ -82,7 +82,7 @@ Search by title, path, or content from the top bar. Use the collapsible sidebar 
 | Pi | `AGENTS.md`, `CLAUDE.md` | Supported |
 | Gemini CLI | `GEMINI.md` | Supported (`~/.gemini/tmp/<dir>/chats/*.jsonl` via `projects.json`) |
 | Cursor | `rules/*.mdc` | Supported (agent transcripts + Composer chats in `state.vscdb`) |
-| opencode | `AGENTS.md` | Supported (`~/.local/share/opencode/storage`, file-based versions) |
+| opencode | `AGENTS.md` | Supported (JSON files and `opencode*.db` SQLite under `~/.local/share/opencode`) |
 | ZCode | `AGENTS.md` | Supported (`~/.zcode/cli/db/db.sqlite`) |
 | Qoder | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | Supported (`~/.qoder/projects/<project>/*.jsonl`) |
 | DeepSeek Harness | `AGENTS.md`, `CLAUDE.md`, and local variants | Supported (`~/.dsh/sessions/<project>/*.jsonl`) |
@@ -99,7 +99,7 @@ Every parsed session can be handed off to another agent from the UI or `agent-me
 | Pi | `~/.pi/agent/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` | `~/.pi/agent/sessions/--<project>--/*.jsonl` |
 | Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`, `.gemini/GEMINI.md` | `~/.gemini/tmp/<dir>/chats/*.jsonl` |
 | Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | `~/.cursor/projects/<project>/agent-transcripts/**` + `state.vscdb` |
-| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | `~/.local/share/opencode/storage/{session,message}` |
+| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | `~/.local/share/opencode` (JSON 文件或 `opencode*.db` SQLite) |
 | ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | `~/.zcode/cli/db/db.sqlite` |
 | Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | `~/.qoder/projects/<project>/*.jsonl` |
 | DeepSeek Harness | `~/.dsh/AGENTS.md`, `~/.agents/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` (plus `.local` variants) | `~/.dsh/sessions/<project>/*.jsonl` |
