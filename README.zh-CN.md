@@ -47,7 +47,7 @@ npx @liangstech/agent-mem ui --demo
 | 找到各家 agent 的记忆 | 汇总全局与项目级指令文件，同一文件被多个 agent 读取时只显示一份。 |
 | 修改规则并检查改动 | 直接编辑 Markdown，保存前查看 diff，每次写入先备份，可撤销。 |
 | 让多个 agent 复用规则 | 通过 `import`、`symlink` 或 `copy` 共享，源文件变化后保持同步。 |
-| 换个 agent 接着做 | 把会话整理成包含目标、文件、命令与当前状态的交接文档。 |
+| 换个 agent 接着做 | 把会话整理成包含目标、文件、命令、失败尝试与当前状态的交接文档。 |
 | 整理技能库 | 查看、编辑、复制或迁移技能，同时管理跨 agent 共用的 `.agents/skills`。 |
 | 按自己的习惯使用 | 中英文界面、深浅主题，也可直接使用命令行。 |
 
@@ -66,7 +66,7 @@ npx @liangstech/agent-mem ui --demo
 <summary>查看各视图的操作细节</summary>
 
 - **Board**：每个 agent 一列。点开卡片编辑 Markdown，保存前可以看 diff。把卡片拖到另一列会先弹出预览，确认后才写入。拖指令文件是一次性复制；拖会话会生成交接文档。
-- **Skills**：独立的技能库视图（不占 Board）。每个 agent 一列：`~/.claude/skills`、`~/.codex/skills`、`~/.pi/agent/skills`、`~/.zcode/skills`、`~/.qoder/skills`、`~/.dsh/skills` 和项目级 `.claude/skills`，外加跨 agent 共用的 `.agents/skills`（全局与项目级，带 shared 标记）。点卡片查看/编辑 SKILL.md；一键在库间复制或迁移（迁移 = 复制后删源，全程可撤销），也可整目录删除（先打包备份）。对 `.agents` 共用库的删除/移出会给出显著警告。
+- **Skills**：独立的技能库视图（不占 Board）。每个 agent 一列：`~/.claude/skills`、`~/.codex/skills`、`~/.pi/agent/skills`、`~/.zcode/skills`、`~/.qoder/skills`、`~/.dsh/skills`、`~/.config/opencode/skill`，项目级 `.claude/skills`、`.dsh/skills`、`.opencode/skill`，外加跨 agent 共用的 `.agents/skills`（全局与项目级，带 shared 标记）。点卡片查看/编辑 SKILL.md；一键在库间复制或迁移（迁移 = 复制后删源，全程可撤销），也可整目录删除（先打包备份）。对 `.agents` 共用库的删除/移出会给出显著警告。
 - **搜索**：顶栏搜索框按标题、路径、内容过滤 Board 卡片、matrix 行和 Skills 卡片（按 `/` 聚焦，Esc 清空）。
 - **Share matrix**：一行一条记忆，一列一个 agent。点空格子即可授权。已经在读这个文件的 agent 显示为实心勾，点不了。
 - **History**：每次写入都会先备份，可以单条撤销。
@@ -82,12 +82,14 @@ npx @liangstech/agent-mem ui --demo
 | Claude Code | `CLAUDE.md`、项目记忆 | 支持 |
 | Codex | `AGENTS.md`、`AGENTS.override.md` | 支持 |
 | Pi | `AGENTS.md`、`CLAUDE.md` | 支持 |
-| Gemini CLI | `GEMINI.md` | 不解析 |
-| Cursor | `rules/*.mdc` | 不解析 |
-| opencode | `AGENTS.md` | 不解析 |
-| ZCode | `AGENTS.md` | 不解析 |
-| Qoder | `AGENTS.md`、`AGENTS.local.md`、`.qoder/rules/*.md` | 不解析 |
-| DeepSeek Harness | `AGENTS.md`、`CLAUDE.md` 及本地变体 | 不解析 |
+| Gemini CLI | `GEMINI.md` | 支持（`~/.gemini/tmp/<目录>/chats/*.jsonl`，经 `projects.json` 定位） |
+| Cursor | `rules/*.mdc` | 支持（agent transcripts + `state.vscdb` 中的 Composer 会话） |
+| opencode | `AGENTS.md` | 支持（`~/.local/share/opencode` 下的 JSON 文件与 `opencode*.db` SQLite） |
+| ZCode | `AGENTS.md` | 支持（`~/.zcode/cli/db/db.sqlite`） |
+| Qoder | `AGENTS.md`、`AGENTS.local.md`、`.qoder/rules/*.md` | 支持（`~/.qoder/projects/<项目>/*.jsonl`） |
+| DeepSeek Harness | `AGENTS.md`、`CLAUDE.md` 及本地变体 | 支持（`~/.dsh/sessions/<项目>/*.jsonl`） |
+
+解析到的会话都可以从界面或通过 `agent-mem handoff` 交接给另一个 agent。
 
 <details>
 <summary>查看全局、项目与会话文件的完整路径</summary>
@@ -97,12 +99,12 @@ npx @liangstech/agent-mem ui --demo
 | Claude Code | `~/.claude/CLAUDE.md` | `CLAUDE.md`、`.claude/CLAUDE.md`、`CLAUDE.local.md`，以及 `~/.claude/projects/<项目>/memory/*.md` | `~/.claude/projects/<项目>/*.jsonl` |
 | Codex | `~/.codex/AGENTS.md` | `AGENTS.md`（`AGENTS.override.md` 优先） | `~/.codex/sessions/**/*.jsonl` |
 | Pi | `~/.pi/agent/AGENTS.md` | `AGENTS.md`、`CLAUDE.md` | `~/.pi/agent/sessions/--<项目>--/*.jsonl` |
-| Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`、`.gemini/GEMINI.md` | 不解析 |
-| Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | 不解析 |
-| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | 不解析 |
-| ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | 不解析 |
-| Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`、`AGENTS.local.md`、`.qoder/rules/*.md` | 不解析 |
-| DeepSeek Harness | `~/.dsh/AGENTS.md`、`~/.agents/AGENTS.md` | `AGENTS.md`、`CLAUDE.md`（含 `.local` 变体） | 不解析 |
+| Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`、`.gemini/GEMINI.md` | `~/.gemini/tmp/<目录>/chats/*.jsonl` |
+| Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | `~/.cursor/projects/<项目>/agent-transcripts/**` + `state.vscdb` |
+| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | `~/.local/share/opencode`（JSON 文件或 `opencode*.db` SQLite） |
+| ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | `~/.zcode/cli/db/db.sqlite` |
+| Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`、`AGENTS.local.md`、`.qoder/rules/*.md` | `~/.qoder/projects/<项目>/*.jsonl` |
+| DeepSeek Harness | `~/.dsh/AGENTS.md`、`~/.agents/AGENTS.md` | `AGENTS.md`、`CLAUDE.md`（含 `.local` 变体） | `~/.dsh/sessions/<项目>/*.jsonl` |
 
 </details>
 
@@ -114,13 +116,13 @@ npx @liangstech/agent-mem ui --demo
 
 授权有三种写法，矩阵里可以指定，不指定就按顺序自动选：
 
-1. `import`，在 Claude Code 里加一行 `@路径`，源文件一改，它读到的就是新的。
+1. `import`，在 Claude Code、Gemini CLI 里加一行 `@路径`，源文件一改，它读到的就是新的。
 2. `symlink`，目标文件还不存在时，直接链到源文件。
 3. `copy`，把内容写进目标文件里一段 `<!-- agent-mem:begin -->` 标记的区块。源文件变化后会自动同步，你手写的其余部分留着不动。
 
 ### 交接会话
 
-工作记忆不一样。会话是各家自己的 JSONL，没法塞进另一个 agent 正在进行的对话里。拖过去时先按原文预览，点 Summarize 才整理成交接摘要（目标、后续要求、改过的文件、跑过的命令、最后状态），写到目标 agent 下一次启动会读到的位置，并在写入前打码疑似密钥。
+工作记忆不一样。会话是各家自己的 JSONL，没法塞进另一个 agent 正在进行的对话里。拖过去时先按原文预览，点 Summarize 才整理成交接摘要（目标、后续要求、改过的文件、跑过的命令、失败尝试、最后状态），写到目标 agent 下一次启动会读到的位置，并在写入前打码疑似密钥。失败尝试会列出输出中报错的工具调用（退出码、traceback、「找不到」等），以及 agent 自己承认走不通的行，避免下一个 agent 原样重试。
 
 摘要优先用本机已装 agent 自己的 CLI（目标 agent → 来源 agent → 其他已装 agent，如 `claude -p`、`pi -p`、`codex exec`，无需任何 API Key），其次才用配置了 `AGENT_MEM_LLM_API_KEY` 的 OpenAI 兼容接口；没有可用模型时用规则摘要。
 
@@ -241,10 +243,10 @@ pnpm --filter @agent-mem/web dev   # 前端热更新，接口代理到 4477
 
 ## 边界
 
-- 各 agent 的目录结构会随版本变化。适配器用公开的路径约定，并带了三家会话格式的样例测试；对不上时优先看 `ls` 读到了什么。
+- 各 agent 的目录结构会随版本变化。适配器用公开的路径约定，并为每种已支持的会话格式提供样例测试；对不上时优先看 `ls` 读到了什么。
 - 交接文档是给「下一次启动」读的，不会改写一个已经打开的会话。
 - 复制和交接会扫描常见的密钥格式并打码，但不能代替你自己看一遍 diff。
-- 界面中的 agent 图标取自各家官方素材（`packages/web/public/agents/`），仅用于标识对应产品；其版权归 Anthropic、OpenAI、Pi (pi.dev)、Google、Cursor、opencode、Z.ai、Qoder 各自所有。ZCode 官方暂未发布 SVG，使用其官方透明 PNG。
+- 界面中的 agent 图标取自各家官方素材（`packages/web/public/agents/`），仅用于标识对应产品；其版权归 Anthropic、OpenAI、Pi (pi.dev)、Google、Cursor、opencode、Z.ai、Qoder 与 DeepSeek 各自所有。ZCode 官方暂未发布 SVG，使用其官方透明 PNG。
 
 ## 许可证
 
