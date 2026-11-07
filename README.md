@@ -1,6 +1,6 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/RCliang/agent-mem-workspace/main/packages/web/public/favicon.svg" width="64" height="64" alt="agent-mem logo">
-  <h1>agent-mem</h1>
+  <h1>AGENT-MEM</h1>
   <p><strong>One workspace for every coding agent's memory.</strong></p>
   <p>Browse, edit, and share memory files. Hand off work between coding agents.</p>
   <p>

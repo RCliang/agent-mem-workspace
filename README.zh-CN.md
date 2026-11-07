@@ -1,6 +1,6 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/RCliang/agent-mem-workspace/main/packages/web/public/favicon.svg" width="64" height="64" alt="agent-mem logo">
-  <h1>agent-mem</h1>
+  <h1>AGENT-MEM</h1>
   <p><strong>一个工作台，管理所有编码 agent 的记忆。</strong></p>
   <p>查看、编辑、共享记忆文件，在不同 agent 之间交接工作。</p>
   <p>
