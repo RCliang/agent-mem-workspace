@@ -107,7 +107,8 @@ describe('adapters', () => {
 
     expect(hub.adapter('zcode').instructionFile(project).filePath).toBe(path.join(project, 'AGENTS.md'));
     expect(hub.adapter('zcode').instructionFile(null).filePath).toBe(path.join(home, '.zcode', 'AGENTS.md'));
-    expect(hub.adapter('zcode').cli).toBeUndefined();
+    const zcodeArgs = hub.adapter('zcode').cli?.args('hello') ?? [];
+    expect(zcodeArgs.slice(zcodeArgs.indexOf('-p'))).toEqual(['-p', 'hello', '--mode', 'plan', '--no-color']);
     expect(hub.adapter('qoder').instructionFile(project).filePath).toBe(path.join(project, 'AGENTS.md'));
     expect(hub.adapter('qoder').cli).toBeUndefined();
   });
@@ -119,7 +120,8 @@ describe('adapters', () => {
     const adapter = hub.adapter('dsh');
     expect(adapter.id).toBe('deepseek-harness');
     expect(adapter.capabilities.imports).toBe(false);
-    expect(adapter.cli).toBeUndefined();
+    expect(adapter.cli?.command).toBe('dsh');
+    expect(adapter.cli?.args('hello')).toEqual(['headless', '--approval-policy', 'never', 'hello']);
     expect(adapter.instructionFile(null).filePath).toBe(path.join(home, '.dsh', 'AGENTS.md'));
     expect(adapter.instructionFile(project).filePath).toBe(path.join(project, 'AGENTS.md'));
     const items = (await hub.memories(project)).filter((i) => i.agent === 'deepseek-harness' && i.kind === 'instructions');

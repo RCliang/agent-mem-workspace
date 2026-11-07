@@ -10,11 +10,13 @@ export function SkillsDrawer({
   project,
   onClose,
   onSaved,
+  onDelete,
 }: {
   skill: SkillItem;
   project: string | null;
   onClose: () => void;
   onSaved: () => void;
+  onDelete: () => void;
 }) {
   const [detail, setDetail] = useState<SkillDetail | null>(null);
   const [content, setContent] = useState('');
@@ -100,6 +102,15 @@ export function SkillsDrawer({
       </div>
 
       <footer className="flex shrink-0 items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
+        <Button
+          variant="danger"
+          onClick={() => {
+            if (dirty && !window.confirm(t('skillDrawer.discardDelete'))) return;
+            onDelete();
+          }}
+        >
+          {t('common.deleteEllipsis')}
+        </Button>
         <span className="min-w-0 flex-1 text-[12px] leading-snug text-paper-mute">{t('skillDrawer.hint')}</span>
         <Button variant="quiet" onClick={onClose}>
           {t('common.close')}
