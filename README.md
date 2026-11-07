@@ -64,7 +64,7 @@ Search by title, path, or content from the top bar. Use the collapsible sidebar 
 <summary>View interaction details</summary>
 
 - **Board**: one column per agent. Open a card to edit Markdown with a diff before saving. Dragging a card to another column shows a preview first and only writes on confirm. Dragging an instruction file is a one-time copy; dragging a session produces a handoff document.
-- **Skills**: a dedicated skill-library view (separate from the Board), one column per agent: `~/.claude/skills`, `~/.codex/skills`, `~/.pi/agent/skills`, `~/.zcode/skills`, `~/.qoder/skills`, `~/.dsh/skills`, project-level `.claude/skills`, plus the cross-agent `.agents/skills` (global and project, marked shared). Open a card to view/edit SKILL.md; copy or migrate between libraries in one click (migrate = copy then remove source, undoable throughout), or delete a whole folder (backed up first). Destructive actions on the shared `.agents` library get a prominent warning.
+- **Skills**: a dedicated skill-library view (separate from the Board), one column per agent: `~/.claude/skills`, `~/.codex/skills`, `~/.pi/agent/skills`, `~/.zcode/skills`, `~/.qoder/skills`, `~/.dsh/skills`, `~/.config/opencode/skill`, project-level `.claude/skills`, `.dsh/skills`, `.opencode/skill`, plus the cross-agent `.agents/skills` (global and project, marked shared). Open a card to view/edit SKILL.md; copy or migrate between libraries in one click (migrate = copy then remove source, undoable throughout), or delete a whole folder (backed up first). Destructive actions on the shared `.agents` library get a prominent warning.
 - **Search**: the top bar filters Board cards, matrix rows and Skills cards by title, path or content (`/` to focus, Esc to clear).
 - **Share matrix**: one row per memory, one column per agent. Click an empty cell to grant access; agents already reading the file show a solid check and cannot be toggled.
 - **History**: every write is backed up first and can be undone individually.
@@ -87,7 +87,7 @@ Search by title, path, or content from the top bar. Use the collapsible sidebar 
 | Qoder | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | Supported (`~/.qoder/projects/<project>/*.jsonl`) |
 | DeepSeek Harness | `AGENTS.md`, `CLAUDE.md`, and local variants | Supported (`~/.dsh/sessions/<project>/*.jsonl`) |
 
-Every parsed session can be handed off to another agent from the UI or `agent-mem handoff --from <agent>`.
+Every parsed session can be handed off to another agent from the UI or with `agent-mem handoff`.
 
 <details>
 <summary>View full global, project, and session paths</summary>
@@ -99,7 +99,7 @@ Every parsed session can be handed off to another agent from the UI or `agent-me
 | Pi | `~/.pi/agent/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` | `~/.pi/agent/sessions/--<project>--/*.jsonl` |
 | Gemini CLI | `~/.gemini/GEMINI.md` | `GEMINI.md`, `.gemini/GEMINI.md` | `~/.gemini/tmp/<dir>/chats/*.jsonl` |
 | Cursor | `~/.cursor/rules/*.mdc` | `.cursor/rules/*.mdc` | `~/.cursor/projects/<project>/agent-transcripts/**` + `state.vscdb` |
-| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | `~/.local/share/opencode` (JSON 文件或 `opencode*.db` SQLite) |
+| opencode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` | `~/.local/share/opencode` (JSON files or `opencode*.db` SQLite) |
 | ZCode | `~/.zcode/AGENTS.md` | `AGENTS.md` | `~/.zcode/cli/db/db.sqlite` |
 | Qoder | `~/.qoder/AGENTS.md` | `AGENTS.md`, `AGENTS.local.md`, `.qoder/rules/*.md` | `~/.qoder/projects/<project>/*.jsonl` |
 | DeepSeek Harness | `~/.dsh/AGENTS.md`, `~/.agents/AGENTS.md` | `AGENTS.md`, `CLAUDE.md` (plus `.local` variants) | `~/.dsh/sessions/<project>/*.jsonl` |
@@ -114,7 +114,7 @@ When several agents read the same file (the project's `AGENTS.md` belongs to Cod
 
 Sharing supports three strategies, selectable in the matrix (otherwise auto-chosen in order):
 
-1. `import` — adds an `@path` line (Claude Code); when the source changes, the agent reads the new content.
+1. `import` — adds an `@path` line (Claude Code and Gemini CLI); when the source changes, the agent reads the new content.
 2. `symlink` — when the target file does not exist yet, link it straight to the source.
 3. `copy` — writes the content into a `<!-- agent-mem:begin -->` marked block inside the target file. Auto-synced when the source changes; the rest of your hand-written file is left alone.
 
@@ -241,10 +241,10 @@ Before every write, agent-mem compares the content hash from when you opened the
 
 ## Limits
 
-- Agent directory layouts change across versions. Adapters follow the public path conventions and carry sample-format tests for three session formats; when something doesn't line up, check what `ls` reads first.
+- Agent directory layouts change across versions. Adapters follow the public path conventions and carry sample-format tests for the supported session formats; when something doesn't line up, check what `ls` reads first.
 - Handoff documents are written for the "next startup"; a live session is never rewritten.
 - Copies and handoffs scan for common secret formats and mask them, but that does not replace reviewing the diff yourself.
-- Agent icons in the UI come from each vendor's official assets (`packages/web/public/agents/`) and are used only to identify the products; copyright belongs to Anthropic, OpenAI, Pi (pi.dev), Google, Cursor, opencode, Z.ai and Qoder respectively. ZCode has no official SVG yet, so its official transparent PNG is used.
+- Agent icons in the UI come from each vendor's official assets (`packages/web/public/agents/`) and are used only to identify the products; copyright belongs to Anthropic, OpenAI, Pi (pi.dev), Google, Cursor, opencode, Z.ai, Qoder and DeepSeek respectively. ZCode has no official SVG yet, so its official transparent PNG is used.
 
 ## License
 
