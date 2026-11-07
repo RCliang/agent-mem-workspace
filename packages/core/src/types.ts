@@ -73,10 +73,12 @@ export interface WriteTarget {
 
 /** One-shot headless invocation of a coding agent's own CLI, used for local LLM tasks. */
 export interface AgentCli {
-  /** Binary expected on PATH, e.g. `claude`. */
+  /** Binary expected on PATH, e.g. `claude`, or an absolute executable path. */
   command: string;
   /** Arguments for a single prompt that must print its answer to stdout and exit. */
   args: (prompt: string) => string[];
+  /** Extra environment merged over the parent process. Values replace same-named variables. */
+  env?: Record<string, string>;
 }
 
 export interface AgentAdapter {

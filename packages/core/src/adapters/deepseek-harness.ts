@@ -33,6 +33,8 @@ export function deepseekHarnessAdapter(ctx: Context): AgentAdapter {
     id,
     displayName: 'DeepSeek Harness',
     capabilities: { imports: false },
+    // `dsh headless` answers one task on stdout and exits. Asking for approval would hang the summarizer.
+    cli: { command: 'dsh', args: (p) => ['headless', '--approval-policy', 'never', p] },
 
     detect: () => isDir(root),
 

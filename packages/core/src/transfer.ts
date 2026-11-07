@@ -122,7 +122,10 @@ const CLI_TIMEOUT_MS = 120_000;
 
 async function runAgentCli(cli: AgentCli, prompt: string): Promise<string | null> {
   return new Promise((resolve) => {
-    const child = spawn(cli.command, cli.args(prompt), { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(cli.command, cli.args(prompt), {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: cli.env ? { ...process.env, ...cli.env } : undefined,
+    });
     let stdout = '';
     let settled = false;
     const done = (out: string | null) => {

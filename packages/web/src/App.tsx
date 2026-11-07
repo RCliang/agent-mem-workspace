@@ -277,7 +277,7 @@ export function App() {
     [project],
   );
   const openSkillDelete = useCallback(
-    (skill: SkillItem) => setPlan({ kind: 'skill', load: () => api.previewSkillDelete(project ?? null, skill.id) }),
+    (skill: SkillItem) => setPlan({ kind: 'skill-delete', load: () => api.previewSkillDelete(project ?? null, skill.id) }),
     [project],
   );
 
@@ -588,6 +588,7 @@ export function App() {
               project={project ?? null}
               onClose={() => setOpenSkillId(null)}
               onSaved={() => void reload()}
+              onDelete={() => openSkillDelete(openSkill)}
             />
           )}
         </div>

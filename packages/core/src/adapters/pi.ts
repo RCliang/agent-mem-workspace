@@ -28,7 +28,8 @@ export function piAdapter(ctx: Context): AgentAdapter {
     id,
     displayName: 'Pi',
     capabilities: { imports: false },
-    cli: { command: 'pi', args: (p) => ['-p', p, '--mode', 'text'] },
+    // --no-tools keeps the summarizer from editing the workspace. --no-session avoids writing a chat transcript for the summary itself.
+    cli: { command: 'pi', args: (p) => ['-p', p, '--mode', 'text', '--no-tools', '--no-session', '--no-skills'] },
 
     detect: () => isDir(root),
 

@@ -122,7 +122,7 @@ npx @liangstech/agent-mem ui --demo
 
 工作记忆不一样。会话是各家自己的 JSONL，没法塞进另一个 agent 正在进行的对话里。拖过去时先按原文预览，点 Summarize 才整理成交接摘要（目标、后续要求、改过的文件、跑过的命令、最后状态），写到目标 agent 下一次启动会读到的位置，并在写入前打码疑似密钥。
 
-摘要优先用本机已装 agent 自己的 CLI（目标 agent → 来源 agent → 其他已装 agent，如 `claude -p`、`pi -p`、`codex exec`，无需任何 API Key），其次才用配置了 `AGENT_MEM_LLM_API_KEY` 的 OpenAI 兼容接口；没有可用模型时用规则摘要。
+摘要优先用本机已装 agent 自己的 CLI（目标 agent → 来源 agent → 其他已装 agent，如 `claude -p`、`pi -p`、`codex exec`、`zcode -p`，无需任何 API Key），其次才用配置了 `AGENT_MEM_LLM_API_KEY` 的 OpenAI 兼容接口；没有可用模型时用规则摘要。
 
 `AGENT_MEM_LLM_MODE=api|local` 可以强制只走某一条通道。`agent-mem handoff` 走摘要，`agent-mem transfer` 默认原文，加上 `--summarize` 才摘要。
 

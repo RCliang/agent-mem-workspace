@@ -208,6 +208,27 @@ a {
   }
 }
 
+/*
+ * Unlayered on purpose. `textarea { font: inherit }` is also unlayered and would
+ * otherwise keep the summary at the 16px body size, and a textarea defaults to two rows
+ * when its parent height is indefinite.
+ */
+dialog.plan-dialog {
+  width: min(1120px, 96vw);
+  max-width: none;
+  height: min(860px, 88vh);
+  max-height: 88vh;
+}
+
+dialog.plan-dialog .plan-preview {
+  flex: 1 1 auto;
+  min-height: min(520px, 58vh);
+  overflow: auto;
+  font-family: var(--font-outlier), ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 @keyframes toast-in {
   from {
     transform: translateY(10px);

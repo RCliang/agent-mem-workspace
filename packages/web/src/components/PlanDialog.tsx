@@ -11,7 +11,8 @@ export type PlanRequest =
   | { kind: 'transfer'; load: (render: TransferRender) => Promise<Plan> }
   | { kind: 'share'; load: () => Promise<Plan> }
   | { kind: 'unshare'; load: () => Promise<Plan> }
-  | { kind: 'skill'; load: (opts: { move: boolean }) => Promise<Plan> };
+  | { kind: 'skill'; load: (opts: { move: boolean }) => Promise<Plan> }
+  | { kind: 'skill-delete'; load: () => Promise<Plan> };
 
 export function PlanDialog({ request, onClose, onApplied }: { request: PlanRequest; onClose: () => void; onApplied: () => void }) {
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -20,6 +21,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
   const [loading, setLoading] = useState(false);
   const [move, setMove] = useState(false);
   const [active, setActive] = useState(0);
+  const [summaryEdit, setSummaryEdit] = useState(false);
   const { t } = useI18n();
   const tildify = useTildify();
   const toast = useToast();
@@ -57,8 +59,25 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
 
   useEffect(() => {
     setMove(false);
+    setSummaryEdit(false);
     void run(request.kind === 'transfer' ? 'verbatim' : undefined);
   }, [request, run]);
+
+  /** Keep an inlined handoff copy in the reference file aligned with the edited document. */
+  function editSummary(value: string) {
+    setPlan((current) => {
+      if (!current) return current;
+      const writes = current.writes.map((w, i) => (i === active ? { ...w, after: value } : w));
+      if (current.kind === 'handoff' && active === 0 && writes[1]) {
+        const prev = current.writes[0]?.after.trim() ?? '';
+        const next = value.trim();
+        if (prev && prev !== next && writes[1].after.includes(prev)) {
+          writes[1] = { ...writes[1], after: writes[1].after.replace(prev, next) };
+        }
+      }
+      return { ...current, writes };
+    });
+  }
 
   async function apply() {
     if (!plan) return;
@@ -94,7 +113,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
       ref={dialogRef}
       onClose={onClose}
       onClick={(e) => e.target === dialogRef.current && onClose()}
-      className="m-auto flex max-h-[86dvh] w-[min(920px,94vw)] flex-col overflow-hidden rounded-lg bg-[var(--glass)] p-0 text-paper shadow-[var(--glass-hi),var(--shadow-modal)] backdrop:bg-backdrop backdrop-blur-[var(--glass-blur)] [animation:dialog-in_260ms_var(--ease-out-expo)] open:flex"
+      className="plan-dialog m-auto flex h-[min(860px,88vh)] max-h-[88vh] w-[min(1120px,96vw)] max-w-none flex-col overflow-hidden rounded-lg bg-[var(--glass)] p-0 text-paper shadow-[var(--glass-hi),var(--shadow-modal)] backdrop:bg-backdrop backdrop-blur-[var(--glass-blur)] [animation:dialog-in_260ms_var(--ease-out-expo)] open:flex"
     >
       <header className="flex items-start gap-3 border-b border-ink-700 px-5 pt-4 pb-3.5">
         <div className="min-w-0 flex-1">
@@ -140,7 +159,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
         </nav>
       )}
 
-      <div className="min-h-[200px] flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {error && <p className="px-5 py-4 text-[13px] text-danger">{error}</p>}
         {!plan && !error && <div className="m-5 h-40 animate-pulse rounded-lg bg-ink-800" />}
         {plan && plan.writes.length === 0 && !plan.dirOps?.length && <p className="px-5 py-4 text-[13px] text-paper-dim">{t('plan.nothing')}</p>}
@@ -167,7 +186,7 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
           </ul>
         )}
         {write && (
-          <div className="flex h-full max-h-[56vh] flex-col">
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex items-center gap-2 px-5 py-2 text-[12px]">
               {write.symlinkTo ? (
                 <Link2 className="size-3.5 text-signal" />
@@ -189,14 +208,32 @@ export function PlanDialog({ request, onClose, onApplied }: { request: PlanReque
                       : t('plan.modified')}
               </Tag>
             </div>
-            <DiffView className="flex-1 border-t border-ink-700/70" before={write.before ?? ''} after={write.remove ? '' : write.after} />
+            {summaryEdit && !write.remove && !write.symlinkTo ? (
+              <textarea
+                value={write.after}
+                disabled={loading}
+                spellCheck={false}
+                aria-label={t('plan.summaryEditor')}
+                onChange={(e) => editSummary(e.target.value)}
+                className="plan-preview min-h-0 flex-1 resize-none border-t border-ink-700/70 bg-ink-950 p-4 text-paper outline-none disabled:opacity-60"
+              />
+            ) : (
+              <DiffView className="plan-preview flex-1 border-t border-ink-700/70" before={write.before ?? ''} after={write.remove ? '' : write.after} />
+            )}
           </div>
         )}
       </div>
 
       <footer className="flex flex-wrap items-center gap-3 border-t border-ink-700 bg-ink-850 px-5 py-3">
         {request.kind === 'transfer' && (
-          <Button variant="quiet" disabled={loading} onClick={() => void run('summary')}>
+          <Button
+            variant="quiet"
+            disabled={loading}
+            onClick={() => {
+              setSummaryEdit(true);
+              void run('summary');
+            }}
+          >
             <Sparkles className="size-3.5 text-signal" /> {t('plan.summarize')}
           </Button>
         )}

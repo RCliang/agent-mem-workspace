@@ -122,7 +122,7 @@ Sharing supports three strategies, selectable in the matrix (otherwise auto-chos
 
 Working memory is different. Sessions are per-agent JSONL transcripts and cannot be injected into another agent's live conversation. Dragging one across shows a raw preview first; press Summarize to turn it into a handoff note (goals, follow-up requirements, changed files, commands run, failed attempts, final state) written where the target agent will read it on next start, with suspected secrets masked before writing. Failed attempts lists tool calls whose output reports an error (exit codes, tracebacks, "not found") plus lines where the agent admits a dead end, so the next agent does not retry them as-is.
 
-Summarization prefers a locally installed agent CLI (target agent → source agent → any other installed agent, e.g. `claude -p`, `pi -p`, `codex exec` — no API key needed), then falls back to an OpenAI-compatible endpoint configured via `AGENT_MEM_LLM_API_KEY`, and finally to a rule-based summary.
+Summarization prefers a locally installed agent CLI (target agent → source agent → any other installed agent, e.g. `claude -p`, `pi -p`, `codex exec`, `zcode -p` — no API key needed), then falls back to an OpenAI-compatible endpoint configured via `AGENT_MEM_LLM_API_KEY`, and finally to a rule-based summary.
 
 `AGENT_MEM_LLM_MODE=api|local` forces one channel. `agent-mem handoff` always summarizes; `agent-mem transfer` copies verbatim unless you pass `--summarize`.
 

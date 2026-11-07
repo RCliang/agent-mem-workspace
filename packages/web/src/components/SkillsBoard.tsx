@@ -15,7 +15,7 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { ArrowRightLeft, Blocks, Search, Trash2, X } from 'lucide-react';
+import { ArrowRightLeft, Blocks, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SkillItem, SkillLibrary } from '../api';
 import { useI18n } from '../i18n';
@@ -107,13 +107,13 @@ function SkillCard({
       >
         <SkillCardBody skill={skill} nameOf={nameOf} />
       </button>
-      {(targets.length > 0 || !skill.shared) && (
+      {targets.length > 0 && (
         <div ref={menuRef} className="absolute top-2 right-2">
           <button
             type="button"
             aria-haspopup="menu"
             aria-expanded={open}
-            aria-label={t('skills.migrateDelete', { name: skill.name })}
+            aria-label={t('skills.migrateAria', { name: skill.name })}
             onClick={() => setOpen((v) => !v)}
             className="hit-target rounded-md p-1 text-ink-500 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-ink-700 hover:text-paper focus-visible:opacity-100 max-lg:opacity-100 [@media(pointer:coarse)]:opacity-100"
           >
@@ -136,21 +136,20 @@ function SkillCard({
                   {t('skills.migrateTo', { name: l.displayName })}
                 </button>
               ))}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onDelete(skill);
-                }}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-danger hover:bg-danger/10"
-              >
-                <Trash2 className="size-3.5" /> {t('common.deleteEllipsis')}
-              </button>
             </div>
           )}
         </div>
       )}
+      <div className="mt-1 flex justify-end px-1">
+        <button
+          type="button"
+          aria-label={t('skills.deleteAria', { name: skill.name })}
+          onClick={() => onDelete(skill)}
+          className="rounded-md px-1.5 py-0.5 text-[11px] text-danger hover:bg-danger/10"
+        >
+          {t('common.deleteEllipsis')}
+        </button>
+      </div>
     </li>
   );
 }
