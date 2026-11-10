@@ -2,20 +2,21 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createContext, cursorAdapter, deepseekHarnessAdapter, geminiAdapter, opencodeAdapter, qoderAdapter, zcodeAdapter } from '@agent-mem/core';
-import { encodeCursorProject, cursorComposerPath } from '../src/adapters/cursor-sessions.js';
+import { applyPlan, createContext, cursorAdapter, deepseekHarnessAdapter, geminiAdapter, Hub, opencodeAdapter, planTransfer, qoderAdapter, zcodeAdapter } from '@agent-mem/core';
+import { encodeCursorProject, cursorComposerPath, cursorSupportDir } from '../src/adapters/cursor-sessions.js';
 import { dshSessionPath } from '../src/adapters/deepseek-harness.js';
 import { encodeQoderProject } from '../src/adapters/qoder.js';
 import { zcodeSessionPath } from '../src/adapters/zcode-sessions.js';
 
 const roots: string[] = [];
 
-function homeFor(name: string): { home: string; project: string } {
+function homeFor(name: string, projectName = 'shop'): { home: string; project: string } {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `agent-mem-${name}-`));
   roots.push(root);
   const home = path.join(root, 'home');
-  const project = path.join(root, 'work', 'shop');
+  const project = path.join(root, 'work', projectName);
   fs.mkdirSync(project, { recursive: true });
   return { home, project };
 }
@@ -26,7 +27,7 @@ afterEach(() => {
 
 describe('vendor sessions', () => {
   it('lists a Cursor agent transcript and a Composer chat', async () => {
-    const { home, project } = homeFor('cursor');
+    const { home, project } = homeFor('cursor', 'team wiki #1');
     const transcriptId = '11111111-1111-1111-1111-111111111111';
     const transcript = path.join(home, '.cursor', 'projects', encodeCursorProject(project), 'agent-transcripts', transcriptId, `${transcriptId}.jsonl`);
     fs.mkdirSync(path.dirname(transcript), { recursive: true });
@@ -42,11 +43,12 @@ describe('vendor sessions', () => {
     );
 
     const workspaceId = 'ws-shop';
-    const support = path.join(home, 'Library', 'Application Support', 'Cursor', 'User');
+    const support = path.join(cursorSupportDir(home), 'User');
+    const folder = pathToFileURL(project).href.replace(/^file:\/\/\/([a-z]):/i, 'file:///$1%3A');
     fs.mkdirSync(path.join(support, 'workspaceStorage', workspaceId), { recursive: true });
     fs.writeFileSync(
       path.join(support, 'workspaceStorage', workspaceId, 'workspace.json'),
-      JSON.stringify({ folder: `file://${project}` }),
+      JSON.stringify({ folder }),
     );
     const dbFile = path.join(support, 'globalStorage', 'state.vscdb');
     fs.mkdirSync(path.dirname(dbFile), { recursive: true });
@@ -88,7 +90,10 @@ describe('vendor sessions', () => {
     const sessions = (await adapter.readMemories(project)).filter((item) => item.kind === 'session');
     expect(sessions.map((item) => item.title).sort()).toEqual(['Board layout', 'Login redirect']);
     expect(sessions.find((item) => item.title === 'Login redirect')?.filePath).toBe(cursorComposerPath(home, transcriptId));
-    expect((await adapter.listProjects()).map((item) => item.path)).toEqual([project]);
+    const discovered = await adapter.listProjects();
+    expect(discovered.map((item) => item.path)).toEqual([project]);
+    const lookupPath = project.replace(/^([a-z]):/i, (_, drive: string) => `${drive === drive.toLowerCase() ? drive.toUpperCase() : drive.toLowerCase()}:`);
+    expect((await adapter.readMemories(lookupPath)).some((item) => item.title === 'Board layout')).toBe(true);
 
     const parsedTranscript = await adapter.parseSession!(transcript);
     expect(parsedTranscript.messages.map((message) => message.text)).toEqual(['Fix the login redirect', 'Updated the route.']);
@@ -100,6 +105,16 @@ describe('vendor sessions', () => {
       ['assistant', 'They are in the database.'],
     ]);
     expect(composer.cwd).toBe(project);
+
+    const hub = await Hub.create(ctx);
+    const session = (await hub.memories(discovered[0]!.path)).find((item) => item.title === 'Board layout');
+    if (!session) throw new Error('Expected the Cursor Composer session in the discovered project');
+    const plan = await planTransfer(hub, session, 'codex', { render: 'verbatim' });
+    const handoff = plan.writes[0]!.filePath;
+    expect(path.dirname(handoff)).toBe(path.join(project, '.agent-mem', 'handoffs'));
+    expect(plan.writes[1]?.filePath).toBe(path.join(project, 'AGENTS.md'));
+    await applyPlan(ctx, plan);
+    expect(fs.readFileSync(handoff, 'utf8')).toContain('They are in the database.');
   });
 
   it('lists a Gemini CLI chat through the projects.json index', async () => {

@@ -115,8 +115,13 @@ export async function startWatcher(hub: Hub, bus: EventBus, debounceMs = 250): P
 
   async function start() {
     const { deep, shallow } = await watchTargets(hub);
-    const common = { ignored, ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 } } as const;
-    // A root becoming unreadable (permissions, unmounted drive) must not kill the server.
+    const common = {
+      ignored,
+      ignoreInitial: true,
+      // Protected directories and agent lock files can deny access during discovery.
+      ignorePermissionErrors: true,
+      awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+    } as const;
     watchers = [
       chokidar.watch(deep, { ...common, depth: 5 }),
       chokidar.watch(shallow, { ...common, depth: 0 }),

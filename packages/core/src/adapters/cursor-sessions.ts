@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { idFor, listDir, readText, safeJson } from '../fsutil.js';
 import { parseSessionFile } from '../sessions.js';
 import type { MemoryItem, ParsedSession, ProjectInfo, SessionMessage } from '../types.js';
@@ -38,9 +39,7 @@ function asTime(value: unknown): number {
 
 function fileUrlPath(value: string): string | null {
   try {
-    const url = new URL(value);
-    if (url.protocol !== 'file:') return null;
-    return decodeURIComponent(url.pathname);
+    return fileURLToPath(value);
   } catch {
     return null;
   }
@@ -138,7 +137,7 @@ export async function listCursorSessions(home: string, cursorDir: string, projec
   }
   const workspaces = await workspacePaths(home);
   const composers = [...workspaces.entries()].flatMap(([id, stored]) =>
-    path.resolve(stored) === path.resolve(projectPath) ? composerItems(home, projectPath, id) : [],
+    path.relative(stored, projectPath) === '' ? composerItems(home, projectPath, id) : [],
   );
   return newestFirst(oneCardPerChat([...transcripts, ...composers])).slice(0, MAX_SESSIONS_PER_PROJECT);
 }

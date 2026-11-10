@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { applyPlan, ConflictError, listShares, planShare, planTransfer, planUnshare, shareMatrix, syncShares } from '@agent-mem/core';
-import { read, setup } from './helpers.js';
+import { canCreateSymlink, read, setup } from './helpers.js';
 
 async function memory(hub: Awaited<ReturnType<typeof setup>>['hub'], project: string, agent: string, file: string) {
   const m = (await hub.memories(project)).find((i) => i.agent === agent && i.filePath === file);
@@ -24,8 +24,9 @@ describe('sharing', () => {
     expect(await listShares(hub.ctx)).toHaveLength(1);
   });
 
-  it('symlinks when the target file does not exist yet', async () => {
+  it('symlinks when the target file does not exist yet', async (test) => {
     const { hub, otherProject } = await setup();
+    test.skip(!canCreateSymlink(otherProject), 'Windows account cannot create symlinks');
     fs.writeFileSync(path.join(otherProject, 'NOTES.md'), 'x');
     const agentsMd = await memory(hub, otherProject, 'codex', path.join(otherProject, 'AGENTS.md'));
     const plan = await planShare(hub, agentsMd, 'claude-code', 'symlink');

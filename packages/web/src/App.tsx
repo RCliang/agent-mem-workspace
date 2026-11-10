@@ -1,4 +1,4 @@
-import { History as HistoryIcon, LayoutGrid, Menu, Moon, Puzzle, RefreshCw, Search, Sun, Table2, X } from 'lucide-react';
+import { History as HistoryIcon, LayoutGrid, Menu, Moon, Puzzle, RefreshCw, Search, Settings as SettingsIcon, Sun, Table2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, subscribe, type AgentSummary, type BackupEntry, type Info, type MatrixRow, type MemoryItem, type ProjectInfo, type ShareStrategy, type SkillItem, type SkillLibrary } from './api';
 import { Board } from './components/Board';
@@ -10,11 +10,12 @@ import { SessionDrawer } from './components/SessionDrawer';
 import { Sidebar } from './components/Sidebar';
 import { SkillsBoard } from './components/SkillsBoard';
 import { SkillsDrawer } from './components/SkillsDrawer';
+import { Settings } from './components/Settings';
 import { useToast } from './components/Toasts';
 import { useI18n, type MessageKey } from './i18n';
 import { Button, cx, InfoContext } from './ui';
 
-type View = 'board' | 'skills' | 'matrix' | 'history';
+type View = 'board' | 'skills' | 'matrix' | 'history' | 'settings';
 type Theme = 'dark' | 'light';
 
 function SlidingToggle({
@@ -59,6 +60,7 @@ const VIEWS: { id: View; label: MessageKey; icon: typeof LayoutGrid }[] = [
   { id: 'skills', label: 'app.skills', icon: Puzzle },
   { id: 'matrix', label: 'app.matrix', icon: Table2 },
   { id: 'history', label: 'app.history', icon: HistoryIcon },
+  { id: 'settings', label: 'app.settings', icon: SettingsIcon },
 ];
 
 const STORAGE_KEY = 'agent-mem:project';
@@ -513,6 +515,7 @@ export function App() {
             onShowAllAgents={showAllAgents}
           />
           <main className="min-w-0 flex-1 overflow-hidden">
+            {view === 'settings' && <Settings onSaved={() => { void api.info().then(setInfo).catch(() => {}); }} />}
             {project === undefined && !loadError && <div className="m-4 h-40 animate-pulse rounded-lg bg-ink-900" />}
             {loadError && <p className="m-4 border-l-2 border-danger bg-danger/8 px-4 py-3 text-[13px] text-danger">{t('app.loadError', { message: loadError })}</p>}
             {project !== undefined && view === 'board' && (
@@ -558,7 +561,7 @@ export function App() {
               />
             )}
           </main>
-          {openItem && openItem.kind !== 'session' && (
+          {openItem && openItem.kind !== 'session' && openItem.kind !== 'handoff' && (
             <EditorDrawer
               key={openItem.id}
               className="absolute inset-0 z-20 w-full lg:static lg:z-auto lg:w-[min(720px,52vw)]"
@@ -570,7 +573,7 @@ export function App() {
               onShare={(item, agent) => openShare(item, agent)}
             />
           )}
-          {openItem && openItem.kind === 'session' && (
+          {openItem && (openItem.kind === 'session' || openItem.kind === 'handoff') && (
             <SessionDrawer
               key={openItem.id}
               className="absolute inset-0 z-20 w-full lg:static lg:z-auto lg:w-[min(640px,48vw)]"

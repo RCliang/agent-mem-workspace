@@ -1,4 +1,6 @@
 import type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy, SkillItem, TransferRender } from '@agent-mem/core';
+import type { LlmSettingsInput, LlmSettingsView } from '@agent-mem/core';
+export type { LlmSettingsInput, LlmSettingsView };
 
 export type { AgentSummary, BackupEntry, MatrixRow, MemoryItem, ParsedSession, Plan, ProjectInfo, Share, ShareStrategy, SkillItem };
 
@@ -47,6 +49,9 @@ const q = (project: string | null) => (project ? `?project=${encodeURIComponent(
 
 export const api = {
   info: () => request<Info>('GET', '/api/info'),
+  llmSettings: () => request<LlmSettingsView>('GET', '/api/settings/llm'),
+  saveLlmSettings: (settings: LlmSettingsInput) => request<LlmSettingsView>('PUT', '/api/settings/llm', settings),
+  resetLlmSettings: () => request<LlmSettingsView>('DELETE', '/api/settings/llm'),
   agents: () => request<AgentSummary[]>('GET', '/api/agents'),
   projects: () => request<ProjectInfo[]>('GET', '/api/projects'),
   addProject: (path: string) => request<ProjectInfo[]>('POST', '/api/projects', { path }),

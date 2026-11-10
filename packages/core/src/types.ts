@@ -2,7 +2,7 @@ export type AgentId = string;
 
 export type MemoryScope = 'global' | 'project' | 'local';
 
-export type MemoryKind = 'instructions' | 'auto-memory' | 'session';
+export type MemoryKind = 'instructions' | 'auto-memory' | 'session' | 'handoff';
 
 export interface MemoryItem {
   /** Stable id derived from agent + file path. */
@@ -22,6 +22,8 @@ export interface MemoryItem {
   alsoReadBy: AgentId[];
   isWriteTarget: boolean;
   isSymlink: boolean;
+  /** Original agent for a received handoff document. */
+  sourceAgent?: AgentId;
 }
 
 export interface ProjectInfo {

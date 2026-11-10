@@ -201,13 +201,51 @@ Any tool that "reads some Markdown" needs no code change — DeepSeek Harness wa
 
 The agent counts as installed once `homeDir` exists. For more complex read logic, point `plugins` at an ESM module whose default export is `(ctx) => AgentAdapter`.
 
-Summaries default to local agent CLIs; to use a hosted endpoint, configure it through environment variables rather than flags so it never lands in shell history:
+### Which model generates a transfer summary?
+
+Dragging a session first previews its original text. **Generate summary / Summarize** uses the selected mode:
+
+| Mode | Order and fallback |
+| --- | --- |
+| Auto (default) | Target Agent CLI → source Agent CLI → other available Agent CLIs → configured API → rule-based summary. Only adapters with one-shot CLI support are eligible. |
+| Local CLI only | Try eligible Agent CLIs; if none succeeds, use a rule-based summary. Never use the custom API. |
+| Custom API only | Call the configured API directly; on failure, show the reason and use a rule-based summary. |
+
+There is no fixed LLM provider for the local path. Each CLI uses its own model, login and billing configuration. Running a CLI locally can still call a cloud model; it does not mean offline inference or free usage. The transfer preview notes identify the successful Agent CLI, or the API model and host. A rule-based fallback is not an LLM result. API settings do not change the model configured in Cursor, ZCode or another Agent.
+
+### Configure a custom API in the UI
+
+1. Open **Settings → Summary API settings** and choose **Custom API only** to ensure your API handles summaries.
+2. Enter the **Base URL**, **Model ID** and **API Key**, then save. The endpoint must support OpenAI-compatible Chat Completions. Supply its base URL (for example `https://api.openai.com/v1`); agent-mem appends `/chat/completions`. Native Anthropic Messages and Gemini endpoints are not directly supported.
+3. Return to the board, transfer a session and click **Generate summary**. Saving takes effect on the next summary, across all projects, without restarting. Saving validates configuration; the provider is contacted when you generate a summary. Existing handoffs are unchanged.
+
+Settings are stored in `<dataDir>/llm.json`, normally `~/.agent-mem/llm.json`. `AGENT_MEM_DATA_DIR` overrides this directory. A saved profile overrides all four environment variables below. A blank key field preserves the current key when the Base URL stays the same, including an environment key when first saving. If you change the Base URL, enter a key for the new endpoint or clear the current key. To remove it, choose Auto or Local mode, select **Remove the saved key**, then save. **Use environment / defaults** deletes the saved profile and restores the server process's environment values or built-in defaults.
+
+The API key is stored in plaintext locally with owner-only file permissions where supported; Windows uses its filesystem ACLs. It is not returned by the settings API or stored in browser storage. API summarization sends the draft and session transcript or document text to the configured endpoint. Secret masking does not guarantee that every secret is removed from model inputs; use an endpoint suitable for your data.
+
+### Environment configuration
+
+If no UI profile has been saved, the following variables configure summaries. Default mode is `auto`; the API defaults to `https://api.openai.com/v1` and model `gpt-4o-mini`, but is only used when a key is configured. These are application defaults, not a guarantee of model access on your account.
 
 ```bash
+export AGENT_MEM_LLM_MODE=api
 export AGENT_MEM_LLM_API_KEY=...
-export AGENT_MEM_LLM_BASE_URL=https://api.deepseek.com   # optional, defaults to OpenAI
-export AGENT_MEM_LLM_MODEL=deepseek-chat                 # optional
+export AGENT_MEM_LLM_BASE_URL=https://api.openai.com/v1
+export AGENT_MEM_LLM_MODEL=gpt-4o-mini
+agent-mem ui
 ```
+
+PowerShell:
+
+```powershell
+$env:AGENT_MEM_LLM_MODE = "api"
+$env:AGENT_MEM_LLM_API_KEY = "YOUR_API_KEY"
+$env:AGENT_MEM_LLM_BASE_URL = "https://api.openai.com/v1"
+$env:AGENT_MEM_LLM_MODEL = "gpt-4o-mini"
+agent-mem ui
+```
+
+Set these before starting the server; changes to another shell do not update a running process. Commands containing keys can remain in shell history, so prefer the settings page for entering a key.
 
 ## Publish to npm
 

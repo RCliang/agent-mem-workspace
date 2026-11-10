@@ -12,7 +12,11 @@ function write(p, content) {
 }
 
 function session(name, cwd) {
-  return fs.readFileSync(path.join(here, 'sessions', `${name}.jsonl`), 'utf8').replaceAll('{{CWD}}', cwd);
+  const jsonPath = JSON.stringify(cwd).slice(1, -1);
+  const nestedJsonPath = JSON.stringify(jsonPath).slice(1, -1);
+  return fs.readFileSync(path.join(here, 'sessions', `${name}.jsonl`), 'utf8').split('\n')
+    .map((line) => line.replaceAll('{{CWD}}', line.includes('"arguments":') ? nestedJsonPath : jsonPath))
+    .join('\n');
 }
 
 const enc = (p) => p.replace(/[^a-zA-Z0-9]/g, '-');

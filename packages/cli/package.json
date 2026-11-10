@@ -1,6 +1,6 @@
 {
   "name": "@liangstech/agent-mem",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Visually manage, share and hand off memories between coding agents (Claude Code, Codex, Pi, ...)",
   "license": "MIT",
   "type": "module",

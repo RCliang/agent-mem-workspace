@@ -13,3 +13,17 @@ export async function setup(extraAdapters: AgentAdapter[] = []) {
 }
 
 export const read = (p: string) => fs.readFileSync(p, 'utf8');
+
+/** Windows requires Developer Mode or an account with permission to create symlinks. */
+export function canCreateSymlink(project: string): boolean {
+  if (process.platform !== 'win32') return true;
+  const probe = path.join(project, 'symlink-permission-probe');
+  try {
+    fs.symlinkSync('AGENTS.md', probe);
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EPERM') return false;
+    throw error;
+  }
+  fs.unlinkSync(probe);
+  return true;
+}

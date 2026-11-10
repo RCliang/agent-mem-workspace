@@ -3,6 +3,7 @@ import { upsertBlock } from './blocks.js';
 import { tildify, type Context } from './context.js';
 import { idFor, readText } from './fsutil.js';
 import type { Hub } from './hub.js';
+import { resolveLlmSettings, type LlmSettings } from './llm-settings.js';
 import { plannedWrite, type Plan } from './plan.js';
 import { mergeFindings, redact } from './redact.js';
 import { parseSessionFile } from './sessions.js';
@@ -118,14 +119,14 @@ const HANDOFF_SYSTEM =
   '(Goal, Follow-up requests, Files changed, Commands run, Failed attempts, Latest status, Next steps). Keep the first heading and the quoted provenance line unchanged. ' +
   'State decisions, open problems, concrete next steps, and keep the Failed attempts section intact so the reader does not retry known dead ends. Never include secrets.';
 
-/** Calls an OpenAI-compatible chat endpoint configured through AGENT_MEM_LLM_* env vars. */
-export async function llmSummarize(ctx: Context, draft: string, transcript: string, system = HANDOFF_SYSTEM): Promise<string> {
-  const key = ctx.env.AGENT_MEM_LLM_API_KEY;
-  if (!key) throw new Error('Set AGENT_MEM_LLM_API_KEY (and optionally AGENT_MEM_LLM_BASE_URL / AGENT_MEM_LLM_MODEL) to use LLM summaries');
-  const base = (ctx.env.AGENT_MEM_LLM_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = ctx.env.AGENT_MEM_LLM_MODEL ?? 'gpt-4o-mini';
+/** Calls the OpenAI-compatible endpoint from saved settings or AGENT_MEM_LLM_* env vars. */
+export async function llmSummarize(ctx: Context, draft: string, transcript: string, system = HANDOFF_SYSTEM, settings?: LlmSettings): Promise<string> {
+  const { apiKey: key, baseUrl, model } = settings ?? await resolveLlmSettings(ctx);
+  if (!key) throw new Error('Configure an API key in Settings or AGENT_MEM_LLM_API_KEY to use API summaries');
+  const base = baseUrl.replace(/\/+$/, '');
   const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
+    signal: AbortSignal.timeout(120_000),
     headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model,
@@ -136,7 +137,7 @@ export async function llmSummarize(ctx: Context, draft: string, transcript: stri
       ],
     }),
   });
-  if (!res.ok) throw new Error(`LLM request failed: ${res.status} ${await res.text().catch(() => '')}`);
+  if (!res.ok) throw new Error(`LLM request failed (HTTP ${res.status})`);
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   const text = json.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error('LLM returned an empty summary');
@@ -152,23 +153,33 @@ export async function llmLocalSummarizers(hub: Hub): Promise<AgentId[]> {
   return out;
 }
 
+export async function parseMemorySession(hub: Hub, item: MemoryItem): Promise<ParsedSession> {
+  if (item.kind === 'handoff') {
+    return { agent: item.agent, filePath: item.filePath, sessionId: item.id, cwd: item.projectPath,
+      messages: [{ role: 'assistant', text: item.content, toolCalls: [] }] };
+  }
+  const source = hub.adapter(item.agent);
+  return (source.parseSession ?? ((p: string) => parseSessionFile(source.id, p)))(item.filePath);
+}
+
 export async function planHandoff(hub: Hub, session: MemoryItem, targetAgent: AgentId, finishedText: string): Promise<Plan> {
-  if (session.kind !== 'session') throw new Error('Handoffs start from a session');
+  if (session.kind !== 'session' && session.kind !== 'handoff') throw new Error('Handoffs start from a session');
   if (!session.projectPath) throw new Error('Session is not associated with a project');
   const source = hub.adapter(session.agent);
   const target = hub.adapter(targetAgent);
-  const parsed = await (source.parseSession ?? ((p: string) => parseSessionFile(source.id, p)))(session.filePath);
   const notes: string[] = [];
   const redacted = redact(finishedText);
   if (redacted.findings.length) notes.push(`Masked ${redacted.findings.reduce((n, f) => n + f.count, 0)} possible secret(s) before writing.`);
 
-  const name = `handoff-${source.id}-${parsed.sessionId.replace(/[^\w-]/g, '').slice(0, 12) || idFor(source.id, session.filePath)}`;
+  const name = `handoff-${idFor(session.filePath, target.id)}`;
   const { docPath, referenceFile } = target.handoffTarget(session.projectPath, name);
   const title = `Handoff from ${source.displayName}: ${session.title}`;
   const reference = target.formatReference({ docPath, referenceFile, title: oneLine(title).slice(0, 100), content: redacted.text });
+  const metadata = JSON.stringify({ target: target.id, file: path.basename(docPath), title: session.title })
+    .replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
   const blockId = `handoff-${idFor(session.filePath, target.id)}`;
   const refBefore = await readText(referenceFile);
-  const refAfter = upsertBlock(refBefore, blockId, `handoff from ${source.id} ${tildify(hub.ctx, session.filePath)}`, reference);
+  const refAfter = upsertBlock(refBefore, blockId, `handoff from ${source.id} ${tildify(hub.ctx, session.filePath)}`, `${reference}\n\n<!-- agent-mem:handoff ${metadata} -->`);
   notes.push(`${target.displayName} reads the handoff through ${tildify(hub.ctx, referenceFile)}.`);
 
   return {

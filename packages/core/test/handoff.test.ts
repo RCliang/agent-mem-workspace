@@ -29,7 +29,7 @@ describe('handoff', () => {
     const plan = await planTransfer(hub, s, 'claude-code', { render: 'summary', now });
     await applyPlan(hub.ctx, plan);
     const memDir = path.join(hub.ctx.home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
-    const doc = fs.readdirSync(memDir).filter((f) => f.startsWith('handoff-gemini-'))[0]!;
+    const doc = path.basename(plan.writes[0]!.filePath);
     const body = read(path.join(memDir, doc));
     expect(body).toContain('# Handoff: shop-api (from Gemini CLI)');
     expect(body).toContain('## Goal\nAdd a dark theme toggle to the settings page');
@@ -45,7 +45,7 @@ describe('handoff', () => {
     const plan = await planTransfer(hub, s, 'claude-code', { render: 'summary', now });
     await applyPlan(hub.ctx, plan);
     const memDir = path.join(hub.ctx.home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
-    const doc = fs.readdirSync(memDir).filter((f) => f.startsWith('handoff-opencode-'))[0]!;
+    const doc = path.basename(plan.writes[0]!.filePath);
     const body = read(path.join(memDir, doc));
     expect(body).toContain('# Handoff: shop-api (from opencode)');
     expect(body).toContain('## Goal\nWire up the export button');
@@ -60,7 +60,7 @@ describe('handoff', () => {
     const plan = await planTransfer(hub, s, 'claude-code', { render: 'summary', now });
     await applyPlan(hub.ctx, plan);
     const memDir = path.join(hub.ctx.home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
-    const doc = fs.readdirSync(memDir).filter((f) => f.startsWith('handoff-deepseek-harness-'))[0]!;
+    const doc = path.basename(plan.writes[0]!.filePath);
     const body = read(path.join(memDir, doc));
     expect(body).toContain('# Handoff: shop-api (from DeepSeek Harness)');
     expect(body).toContain('## Goal\nSet up the release pipeline for tags');
@@ -78,7 +78,9 @@ describe('handoff', () => {
     await applyPlan(hub.ctx, plan);
 
     const memDir = path.join(hub.ctx.home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
-    const doc = read(path.join(memDir, 'handoff-codex-0199c1d2-cod.md'));
+    const docPath = plan.writes[0]!.filePath;
+    expect(path.dirname(docPath)).toBe(memDir);
+    const doc = read(docPath);
     expect(doc).toContain('# Handoff: shop-api (from Codex)');
     expect(doc).toContain('## Goal\nMigrate the settings page');
     expect(doc).toContain('- `src/pages/Settings.tsx` (apply_patch)');
@@ -90,7 +92,7 @@ describe('handoff', () => {
 
     const index = read(path.join(memDir, 'MEMORY.md'));
     expect(index).toMatch(/^# Memory index/);
-    expect(index).toContain('](handoff-codex-0199c1d2-cod.md)');
+    expect(index).toContain(`](${path.basename(docPath)})`);
   });
 
   it('summarizes failed attempts without flagging successful ones', async () => {
@@ -133,9 +135,9 @@ describe('handoff', () => {
     const agentsMd = read(path.join(project, 'AGENTS.md'));
     expect(agentsMd).toMatch(/^# shop-api agent guide/);
     expect(agentsMd).toContain('Rate limiting is in place');
-    expect(agentsMd).toContain('.agent-mem/handoffs/handoff-claude-code-7f3c2a10-cla.md');
+    expect(agentsMd).toContain(path.relative(project, plan.writes[0]!.filePath));
     expect(agentsMd).not.toContain('hunter2');
-    expect(fs.existsSync(path.join(project, '.agent-mem', 'handoffs', 'handoff-claude-code-7f3c2a10-cla.md'))).toBe(true);
+    expect(fs.existsSync(plan.writes[0]!.filePath)).toBe(true);
   });
 
   it('refines a handoff through a local agent CLI by default', async () => {
@@ -159,7 +161,7 @@ describe('handoff', () => {
     const s = await session(hub, project, 'pi');
     const plan = await planTransfer(hub, s, 'claude-code', { render: 'summary', now });
     expect(plan.writes[0]?.after).toContain('## Goal\nWrite a CHANGELOG entry');
-    expect(plan.notes.join(' ')).toMatch(/AGENT_MEM_LLM_MODE=api/);
+    expect(plan.notes.join(' ')).toContain('API mode has no configured API key');
   });
 
   it('lists only agents that declare a CLI', async () => {

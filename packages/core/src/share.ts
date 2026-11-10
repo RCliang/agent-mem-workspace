@@ -32,7 +32,7 @@ function copyNotice(hub: Hub, item: MemoryItem) {
 }
 
 export async function planShare(hub: Hub, item: MemoryItem, targetAgent: AgentId, strategy?: ShareStrategy): Promise<Plan> {
-  if (item.kind === 'session') throw new Error('Sessions cannot be shared directly; use a handoff instead');
+  if (item.kind === 'session' || item.kind === 'handoff') throw new Error('Sessions cannot be shared directly; use a handoff instead');
   const target = hub.adapter(targetAgent);
   if (item.agent === target.id || item.alsoReadBy.includes(target.id)) {
     throw new Error(`${target.displayName} already reads ${tildify(hub.ctx, item.filePath)} natively`);
@@ -148,7 +148,7 @@ export interface MatrixRow {
 
 /** Rows are non-session memories; columns are agents; each cell says whether that agent reads the memory. */
 export async function shareMatrix(hub: Hub, projectPath: string | null): Promise<MatrixRow[]> {
-  const items = (await hub.memories(projectPath)).filter((m) => m.kind !== 'session');
+  const items = (await hub.memories(projectPath)).filter((m) => m.kind !== 'session' && m.kind !== 'handoff');
   const shares = await listShares(hub.ctx);
   const seen = new Set<string>();
   const rows: MatrixRow[] = [];

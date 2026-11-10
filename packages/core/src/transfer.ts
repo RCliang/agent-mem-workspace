@@ -3,11 +3,11 @@ import { upsertBlock } from './blocks.js';
 import { tildify } from './context.js';
 import { convertForTarget } from './convert.js';
 import { idFor, readText } from './fsutil.js';
-import { llmSummarize, planHandoff, summarizeSession } from './handoff.js';
+import { llmSummarize, parseMemorySession, planHandoff, summarizeSession } from './handoff.js';
 import type { Hub } from './hub.js';
+import { resolveLlmSettings } from './llm-settings.js';
 import { plannedWrite, type Plan } from './plan.js';
 import { redact } from './redact.js';
-import { parseSessionFile } from './sessions.js';
 import { targetFileFor } from './share.js';
 import type { AgentAdapter, AgentCli, AgentId, MemoryItem, ParsedSession } from './types.js';
 
@@ -163,7 +163,11 @@ async function refineDraft(
   transcript: string,
   kind: 'session' | 'document',
 ): Promise<{ text: string; notes: string[] }> {
-  const mode = hub.ctx.env.AGENT_MEM_LLM_MODE;
+  const settings = await resolveLlmSettings(hub.ctx).catch(() => null);
+  if (!settings) {
+    return { text: draft, notes: ['Could not load summary settings. Used the built-in draft. Open Settings to review or reset the profile.'] };
+  }
+  const { mode } = settings;
   const notes: string[] = [];
   let text = draft;
   let refined = false;
@@ -176,37 +180,35 @@ async function refineDraft(
       notes.push(`Summary refined by ${hub.adapter(local.agentId).displayName} running locally through its own CLI.`);
     }
   }
-  if (!refined && mode !== 'local' && hub.ctx.env.AGENT_MEM_LLM_API_KEY) {
+  if (!refined && mode !== 'local' && settings.apiKey) {
     try {
-      text = await llmSummarize(hub.ctx, draft, transcript, kind === 'document' ? DOCUMENT_SYSTEM : undefined);
+      text = await llmSummarize(hub.ctx, draft, transcript, kind === 'document' ? DOCUMENT_SYSTEM : undefined, settings);
       refined = true;
-      notes.push('Summary refined by the configured LLM.');
+      notes.push(`Summary refined by the configured API: ${settings.model} (${new URL(settings.baseUrl).host}).`);
     } catch (e) {
       notes.push(`LLM summary unavailable, used the rule-based summary instead: ${(e as Error).message}`);
     }
   }
-  if (!refined) {
+  if (!refined && notes.length === 0) {
     notes.push(
       kind === 'document'
         ? 'No model ran; the preview is the outline.'
         : mode === 'api'
-          ? 'AGENT_MEM_LLM_MODE=api and no AGENT_MEM_LLM_API_KEY set; used the rule-based summary.'
-          : 'No local agent CLI ran and no AGENT_MEM_LLM_API_KEY is set; used the rule-based summary.',
+          ? 'API mode has no configured API key; used the rule-based summary.'
+          : mode === 'local'
+            ? 'No local agent CLI ran; used the rule-based summary (API disabled in local mode).'
+            : 'No local agent CLI ran and no API key is configured; used the rule-based summary.',
     );
   }
   return { text, notes };
 }
 
-async function parsedSession(hub: Hub, item: MemoryItem): Promise<ParsedSession> {
-  const source = hub.adapter(item.agent);
-  return (source.parseSession ?? ((p: string) => parseSessionFile(source.id, p)))(item.filePath);
-}
-
 async function previewText(hub: Hub, item: MemoryItem, target: AgentAdapter, opts: TransferOptions): Promise<{ text: string; notes: string[] }> {
   const source = hub.adapter(item.agent);
-  if (item.kind === 'session') {
+  if (item.kind === 'handoff' && opts.render === 'verbatim') return { text: item.content, notes: [] };
+  if (item.kind === 'session' || item.kind === 'handoff') {
     if (!item.projectPath) throw new Error('Session is not associated with a project');
-    const parsed = await parsedSession(hub, item);
+    const parsed = await parseMemorySession(hub, item);
     if (opts.render === 'verbatim') return { text: transcriptText(parsed), notes: [] };
     const draft = summarizeSession(parsed, source.displayName, opts.now);
     return refineDraft(hub, [target, source, ...hub.adapters], draft, transcriptForLlm(parsed), 'session');
@@ -218,12 +220,12 @@ async function previewText(hub: Hub, item: MemoryItem, target: AgentAdapter, opt
 export async function planTransfer(hub: Hub, item: MemoryItem, targetAgent: AgentId, opts: TransferOptions): Promise<Plan> {
   const render = requireRender(opts?.render);
   const target = hub.adapter(targetAgent);
-  if (item.kind !== 'session') {
+  if (item.kind !== 'session' && item.kind !== 'handoff') {
     if (item.agent === target.id) throw new Error('Source and target agent are the same');
     if (item.alsoReadBy.includes(target.id)) throw new Error(`${target.displayName} already reads this file natively`);
   }
   const preview = await previewText(hub, item, target, { ...opts, render });
-  if (item.kind === 'session') {
+  if (item.kind === 'session' || item.kind === 'handoff') {
     const plan = await planHandoff(hub, item, targetAgent, preview.text);
     return { ...plan, notes: [...preview.notes, ...plan.notes] };
   }

@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import type { MemoryItem, Plan } from '@agent-mem/core';
 import { createApp, EventBus, startWatcher, watchTargets, type HubEvent } from '@agent-mem/server';
@@ -264,6 +266,36 @@ describe('HTTP API', () => {
 });
 
 describe('watcher', () => {
+  it('starts the watcher without reporting entries that deny access', async () => {
+    const { hub, bus, home, dataDir, project } = await makeApp();
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(path.join(dataDir, 'config.json'), JSON.stringify({ projects: [project] }));
+    const blocked = path.join(home, '.codex');
+    const isBlocked = (file: unknown) => path.relative(blocked, String(file)) === '';
+    const realpath = fsp.realpath;
+    const resolvePath = vi.spyOn(fsp, 'realpath').mockImplementation(async (file, options) => {
+      if (isBlocked(file)) {
+        throw Object.assign(new Error(`EPERM: operation not permitted, realpath '${blocked}'`), { code: 'EPERM' });
+      }
+      return realpath(file, options);
+    });
+    syncBuiltinESMExports();
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const watcher = await startWatcher(hub, bus, 50);
+      try {
+        expect(resolvePath.mock.calls.some(([file]) => isBlocked(file))).toBe(true);
+        expect(errors).not.toHaveBeenCalled();
+      } finally {
+        await watcher.close();
+      }
+    } finally {
+      resolvePath.mockRestore();
+      syncBuiltinESMExports();
+      errors.mockRestore();
+    }
+  });
+
   it('never watches $HOME itself or the macOS Trash, and keeps projects shallow', async () => {
     const { hub, home, project } = await makeApp();
     // A session whose cwd was $HOME, and one trashed project directory.

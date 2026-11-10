@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ConflictError, listBackups, safeWrite, sha, undoBackup } from '@agent-mem/core';
-import { read, setup } from './helpers.js';
+import { canCreateSymlink, read, setup } from './helpers.js';
 
 describe('safeWrite and backups', () => {
   it('writes with a matching hash and can undo', async () => {
@@ -35,8 +35,9 @@ describe('safeWrite and backups', () => {
     expect(fs.existsSync(file)).toBe(false);
   });
 
-  it('writes through symlinks to their target', async () => {
+  it('writes through symlinks to their target', async (test) => {
     const { ctx, project } = await setup();
+    test.skip(!canCreateSymlink(project), 'Windows account cannot create symlinks');
     const link = path.join(project, 'LINK.md');
     fs.symlinkSync('AGENTS.md', link);
     await safeWrite(ctx, link, 'via link\n', { reason: 'test' });

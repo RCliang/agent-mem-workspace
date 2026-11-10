@@ -11,6 +11,19 @@ function isInside(child: string, parent: string) {
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
+function relativeBundlePath(projectPath: string, filePath: string): string {
+  return path.relative(projectPath, filePath).split(path.sep).join('/');
+}
+
+function resolveBundlePath(projectPath: string, relativePath: string): string {
+  const parts = relativePath.split(/[\\/]/);
+  const target = path.join(projectPath, ...parts);
+  if (path.win32.isAbsolute(relativePath) || parts.includes('..') || !isInside(target, projectPath)) {
+    throw new Error(`Bundle path escapes the project: ${relativePath}`);
+  }
+  return target;
+}
+
 /** Portable snapshot of one project's memory files so they can move between machines. */
 export interface MemoryBundle {
   version: 1;
@@ -48,7 +61,7 @@ export async function exportBundle(hub: Hub, projectPath: string): Promise<Memor
       scope: m.scope,
       kind: m.kind,
       title: m.title,
-      relPath: path.relative(projectPath, m.filePath),
+      relPath: relativeBundlePath(projectPath, m.filePath),
       content: m.content,
     });
   }
@@ -62,8 +75,8 @@ export async function exportBundle(hub: Hub, projectPath: string): Promise<Memor
     items: [...byReal.values()].sort((a, b) => a.relPath.localeCompare(b.relPath)),
     shares: shares.map(({ sourcePath, targetPath, projectPath: _projectPath, ...rest }) => ({
       ...rest,
-      sourceRel: path.relative(projectPath, sourcePath),
-      targetRel: path.relative(projectPath, targetPath),
+      sourceRel: relativeBundlePath(projectPath, sourcePath),
+      targetRel: relativeBundlePath(projectPath, targetPath),
     })),
   };
 }
@@ -81,8 +94,7 @@ export async function planImportBundle(hub: Hub, bundle: MemoryBundle, projectPa
   let skipped = 0;
   let unchanged = 0;
   for (const item of bundle.items) {
-    if (!item.relPath || item.relPath.split(path.sep).some((p) => p === '..')) throw new Error(`Bundle item escapes the project: ${item.relPath}`);
-    const target = path.join(projectPath, item.relPath);
+    const target = resolveBundlePath(projectPath, item.relPath);
     if ((await readText(target)) === item.content) {
       unchanged++;
       continue;
@@ -98,8 +110,8 @@ export async function planImportBundle(hub: Hub, bundle: MemoryBundle, projectPa
     shares.push({
       ...s,
       projectPath,
-      sourcePath: path.join(projectPath, s.sourceRel),
-      targetPath: path.join(projectPath, s.targetRel),
+      sourcePath: resolveBundlePath(projectPath, s.sourceRel),
+      targetPath: resolveBundlePath(projectPath, s.targetRel),
     });
   }
   const plan: Plan = {

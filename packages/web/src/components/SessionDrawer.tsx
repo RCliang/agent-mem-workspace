@@ -28,6 +28,7 @@ export function SessionDrawer({
   useEffect(() => {
     let cancelled = false;
     setSession(null);
+    setError(null);
     api
       .session(item.id, project)
       .then((s) => !cancelled && setSession(s))
@@ -83,7 +84,7 @@ export function SessionDrawer({
         {session && visible.length === 0 && <p className="text-[13px] text-paper-mute">{t('session.empty')}</p>}
         {visible.map((m, i) => (
           <article key={i} className={cx('rounded-lg px-3.5 py-2.5', m.role === 'user' ? 'bg-ink-800' : 'border border-ink-700')}>
-            <h3 className="mb-1 text-[11px] font-medium text-paper-mute">{m.role === 'user' ? t('session.user') : t('session.agent')}</h3>
+            <h3 className="mb-1 text-[11px] font-medium text-paper-mute">{item.kind === 'handoff' ? t('session.received') : m.role === 'user' ? t('session.user') : t('session.agent')}</h3>
             {m.text && (
               <div className="md-preview max-w-[72ch] text-[13px] leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }} />
             )}

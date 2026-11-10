@@ -13,6 +13,7 @@ import { qoderAdapter } from './adapters/qoder.js';
 import { zcodeAdapter } from './adapters/zcode.js';
 import { expandHome, type Context } from './context.js';
 import { markAlsoReadBy } from './fsutil.js';
+import { handoffCards } from './handoff-cards.js';
 import { readState, writeState } from './store.js';
 import type { AgentAdapter, AgentId, MemoryItem, ProjectInfo } from './types.js';
 
@@ -154,8 +155,15 @@ export class Hub {
 
   /** All memories visible to every agent for a project (or only globals when `projectPath` is null). */
   async memories(projectPath: string | null): Promise<MemoryItem[]> {
-    const items = (await Promise.all(this.adapters.map((a) => a.readMemories(projectPath)))).flat();
-    await markAlsoReadBy(items.filter((item) => item.kind !== 'session'), (item) => item.filePath);
+    let items = (await Promise.all(this.adapters.map((a) => a.readMemories(projectPath)))).flat();
+    if (projectPath) {
+      const cards = await handoffCards(this, projectPath);
+      const files = new Set(cards.map((card) => card.filePath));
+      // Claude also discovers handoff documents as auto-memory files.
+      items = items.filter((item) => !files.has(item.filePath));
+      items.push(...cards);
+    }
+    await markAlsoReadBy(items.filter((item) => item.kind !== 'session' && item.kind !== 'handoff'), (item) => item.filePath);
     for (const item of items) {
       const root = item.scope === 'global' ? null : item.projectPath;
       item.isWriteTarget = item.kind !== 'session' && item.filePath === this.adapter(item.agent).instructionFile(root).filePath;

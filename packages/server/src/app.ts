@@ -10,7 +10,10 @@ import {
   listShares,
   listSkills,
   llmLocalSummarizers,
-  parseSessionFile,
+  getLlmSettings,
+  saveLlmSettings,
+  resetLlmSettings,
+  parseMemorySession,
   planShare,
   planSkillDelete,
   planSkillTransfer,
@@ -85,8 +88,18 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
 
   api.get('/info', async (c) => {
     const local = await llmLocalSummarizers(hub);
-    return c.json({ home: hub.ctx.home, dataDir: hub.ctx.dataDir, llm: local.length > 0 || !!hub.ctx.env.AGENT_MEM_LLM_API_KEY, llmLocal: local });
+    // A broken summary profile should not prevent the board from loading.
+    const settings = await getLlmSettings(hub.ctx).catch(() => null);
+    return c.json({ home: hub.ctx.home, dataDir: hub.ctx.dataDir,
+      llm: !!settings && ((settings.mode !== 'api' && local.length > 0) || (settings.mode !== 'local' && settings.hasApiKey)), llmLocal: local });
   });
+
+  api.get('/settings/llm', async (c) => {
+    c.header('Cache-Control', 'no-store');
+    return c.json(await getLlmSettings(hub.ctx));
+  });
+  api.put('/settings/llm', async (c) => c.json(await saveLlmSettings(hub.ctx, await c.req.json<unknown>())));
+  api.delete('/settings/llm', async (c) => c.json(await resetLlmSettings(hub.ctx)));
 
   api.get('/agents', async (c) => c.json(await hub.agents()));
 
@@ -139,7 +152,7 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
 
   api.put('/memory/:id', async (c) => {
     const item = await hub.findMemory(c.req.param('id'), projectParam(c));
-    if (item.kind === 'session') throw new Error('Sessions are read-only');
+    if (item.kind === 'session' || item.kind === 'handoff') throw new Error('Sessions and handoffs are read-only');
     const { content, expectedHash } = await c.req.json<{ content: string; expectedHash: string }>();
     const res = await safeWrite(hub.ctx, item.filePath, content, { expectedHash, reason: `edit: ${item.title}` });
     await syncShares(hub, item.filePath);
@@ -160,9 +173,8 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
 
   api.get('/session/:id', async (c) => {
     const item = await hub.findMemory(c.req.param('id'), projectParam(c));
-    if (item.kind !== 'session') throw new Error('Not a session');
-    const adapter = hub.adapter(item.agent);
-    const parsed = await (adapter.parseSession ?? ((p: string) => parseSessionFile(adapter.id, p)))(item.filePath);
+    if (item.kind !== 'session' && item.kind !== 'handoff') throw new Error('Not a session');
+    const parsed = await parseMemorySession(hub, item);
     return c.json({ ...parsed, messages: parsed.messages.slice(-200) });
   });
 

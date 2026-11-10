@@ -203,13 +203,51 @@ agent-mem projects add ~/code/app
 
 `homeDir` 存在才算已安装。更复杂的读取逻辑可以用 `plugins` 指向一个 ESM 模块，默认导出 `(ctx) => AgentAdapter`。
 
-模型摘要默认走本机 agent CLI；想用托管接口时通过环境变量配置，不写进参数，避免留在 shell 历史里：
+### 转移时“生成摘要”用的是哪家的模型？
+
+拖拽会话后先预览原文，点击 **生成摘要 / Summarize** 才按所选模式处理：
+
+| 模式 | 调用顺序与回退 |
+| --- | --- |
+| 自动（默认） | 目标 Agent CLI → 来源 Agent CLI → 其他可用 Agent CLI → 已配置的 API → 规则摘要。只有适配器支持单次提示调用的 CLI 才会参与。 |
+| 仅本机 Agent CLI | 依次尝试可用的 Agent CLI；都未成功时使用规则摘要，不调用自定义 API。 |
+| 仅自定义 API | 直接使用配置的 API；失败时显示原因，并回退到规则摘要。 |
+
+本机 CLI 路径没有固定的 LLM 供应商，实际模型、登录账号和计费由各 CLI 自己的配置决定。在本机执行 CLI 仍可能调用云端模型，不代表离线推理或免费使用。转移预览的备注会显示成功执行的 Agent CLI，或 API 的模型名和服务地址；规则摘要不是大模型生成的结果。这里的 API 设置不会修改 Cursor、ZCode 等 Agent 自身使用的模型。
+
+### 在界面配置自定义 API
+
+1. 打开 **设置 → 摘要 API 设置**。想确保摘要使用自己的 API，请选择 **仅自定义 API**。
+2. 填写 **Base URL、模型 ID、API Key** 并保存。接口需要兼容 OpenAI Chat Completions；填写基础地址，例如 `https://api.openai.com/v1`，程序会自动追加 `/chat/completions`。目前不直接支持 Anthropic Messages 或 Gemini 原生接口格式。
+3. 回到看板转移会话，点击 **生成摘要**。设置对所有项目生效，从下一次摘要开始使用，无需重启。保存时只校验配置格式，生成摘要时才会请求供应商；已有交接卡片不会重新生成。
+
+配置保存在 `<dataDir>/llm.json`，默认位置是 `~/.agent-mem/llm.json`，设置了 `AGENT_MEM_DATA_DIR` 则使用该目录。**已保存的整套配置优先于下面四个环境变量**。Base URL 不变时，密钥输入框留空表示保留当前密钥，包括首次保存时从环境变量读取的密钥。更换 Base URL 时，请填写新地址的密钥或清除旧密钥。删除密钥时先选择自动或本机模式，勾选“保存时删除密钥”再保存。点击“恢复环境变量 / 默认值”会删除配置文件，重新采用服务进程的环境变量或默认值。
+
+密钥以明文保存在本机；支持的平台使用仅文件所有者可读写的权限，Windows 使用文件系统 ACL。设置接口不回传密钥，浏览器存储也不保存密钥。API 摘要会把摘要草稿以及会话或文档内容发送至配置的接口；敏感信息打码不能保证模型输入中所有密钥都被移除，请使用适合这些数据的接口。
+
+### 使用环境变量配置
+
+没有保存界面配置时，下列变量决定摘要行为。默认模式是 `auto`；API 默认地址为 `https://api.openai.com/v1`、模型为 `gpt-4o-mini`，但只有配置了密钥才会调用。这些是程序默认值，不代表你的账号一定有该模型的访问权限。
 
 ```bash
+export AGENT_MEM_LLM_MODE=api
 export AGENT_MEM_LLM_API_KEY=...
-export AGENT_MEM_LLM_BASE_URL=https://api.deepseek.com   # 可选，默认 OpenAI
-export AGENT_MEM_LLM_MODEL=deepseek-chat                 # 可选
+export AGENT_MEM_LLM_BASE_URL=https://api.openai.com/v1
+export AGENT_MEM_LLM_MODEL=gpt-4o-mini
+agent-mem ui
 ```
+
+Windows PowerShell：
+
+```powershell
+$env:AGENT_MEM_LLM_MODE = "api"
+$env:AGENT_MEM_LLM_API_KEY = "YOUR_API_KEY"
+$env:AGENT_MEM_LLM_BASE_URL = "https://api.openai.com/v1"
+$env:AGENT_MEM_LLM_MODEL = "gpt-4o-mini"
+agent-mem ui
+```
+
+需要在启动服务前设置环境变量；在另一个终端修改不会更新已经运行的进程。含密钥的命令可能留在 shell 历史中，建议通过设置页面输入密钥。
 
 ## 发布 npm
 

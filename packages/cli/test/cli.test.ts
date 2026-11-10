@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { run, type Io } from '@agent-mem/cli';
-import { encodeClaudeProject, writeState } from '@agent-mem/core';
+import { writeState } from '@agent-mem/core';
 import { read, setup } from '../../core/test/helpers.js';
 
 function capture() {
@@ -87,7 +87,7 @@ describe('agent-mem cli', () => {
   });
 
   it('hands a codex session off to claude code', async () => {
-    const { project, home } = await withHome();
+    const { project, hub } = await withHome();
     const prevMode = process.env.AGENT_MEM_LLM_MODE;
     const prevKey = process.env.AGENT_MEM_LLM_API_KEY;
     process.env.AGENT_MEM_LLM_MODE = 'api';
@@ -95,9 +95,12 @@ describe('agent-mem cli', () => {
     const cap = capture();
     try {
       expect(await run(['handoff', '--from', 'codex', '--to', 'claude', '-p', project, '--yes'], cap.io)).toBe(0);
-      const doc = path.join(home, '.claude', 'projects', encodeClaudeProject(project), 'memory', 'handoff-codex-0199c1d2-cod.md');
-      expect(read(doc)).toContain('# Handoff: shop-api (from Codex)');
-      expect(read(path.join(path.dirname(doc), 'MEMORY.md'))).toContain('handoff-codex-0199c1d2-cod.md');
+      const cards = (await hub.memories(project)).filter((item) => item.kind === 'handoff' && item.agent === 'claude-code');
+      expect(cards).toHaveLength(1);
+      const card = cards[0]!;
+      expect(card.sourceAgent).toBe('codex');
+      expect(read(card.filePath)).toContain('# Handoff: shop-api (from Codex)');
+      expect(read(path.join(path.dirname(card.filePath), 'MEMORY.md'))).toContain(path.basename(card.filePath));
     } finally {
       if (prevMode === undefined) delete process.env.AGENT_MEM_LLM_MODE;
       else process.env.AGENT_MEM_LLM_MODE = prevMode;
@@ -107,7 +110,7 @@ describe('agent-mem cli', () => {
   });
 
   it('hands sessions from every vendor agent off to claude code', async () => {
-    const { project, home } = await withHome();
+    const { project, hub } = await withHome();
     const prevMode = process.env.AGENT_MEM_LLM_MODE;
     const prevKey = process.env.AGENT_MEM_LLM_API_KEY;
     process.env.AGENT_MEM_LLM_MODE = 'api';
@@ -117,16 +120,12 @@ describe('agent-mem cli', () => {
         const cap = capture();
         expect(await run(['handoff', '--from', agent, '--to', 'claude', '-p', project, '--yes'], cap.io)).toBe(0);
       }
-      const memDir = path.join(home, '.claude', 'projects', encodeClaudeProject(project), 'memory');
-      const docs = fs.readdirSync(memDir);
-      for (const prefix of ['handoff-gemini-', 'handoff-opencode-', 'handoff-deepseek-harness-', 'handoff-qoder-', 'handoff-zcode-', 'handoff-cursor-']) {
-        expect(docs.some((f) => f.startsWith(prefix)), prefix).toBe(true);
-      }
-      const geminiDoc = read(path.join(memDir, docs.find((f) => f.startsWith('handoff-gemini-'))!));
+      const cards = (await hub.memories(project)).filter((item) => item.kind === 'handoff' && item.agent === 'claude-code');
+      expect(cards.map((item) => item.sourceAgent).sort()).toEqual(['cursor', 'deepseek-harness', 'gemini', 'opencode', 'qoder', 'zcode']);
+      const geminiDoc = cards.find((item) => item.sourceAgent === 'gemini')?.content;
       expect(geminiDoc).toContain('# Handoff: shop-api (from Gemini CLI)');
       expect(geminiDoc).toContain('dark theme toggle');
-      const ocDoc = read(path.join(memDir, docs.find((f) => f.startsWith('handoff-opencode-'))!));
-      expect(ocDoc).toContain('Wire up the export button');
+      expect(cards.find((item) => item.sourceAgent === 'opencode')?.content).toContain('Wire up the export button');
     } finally {
       if (prevMode === undefined) delete process.env.AGENT_MEM_LLM_MODE;
       else process.env.AGENT_MEM_LLM_MODE = prevMode;

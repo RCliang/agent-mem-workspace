@@ -41,12 +41,12 @@ class AnyPointerSensor extends PointerSensor {
   ] as typeof PointerSensor.activators;
 }
 
-const KIND_ORDER: MemoryItem['kind'][] = ['instructions', 'auto-memory', 'session'];
-const KIND_LABEL: Record<MemoryItem['kind'], MessageKey> = { instructions: 'board.instructions', 'auto-memory': 'board.autoMemory', session: 'board.sessions' };
+const KIND_ORDER: MemoryItem['kind'][] = ['instructions', 'auto-memory', 'session', 'handoff'];
+const KIND_LABEL: Record<MemoryItem['kind'], MessageKey> = { instructions: 'board.instructions', 'auto-memory': 'board.autoMemory', session: 'board.sessions', handoff: 'board.handoffs' };
 const SCOPE_LABEL: Record<MemoryItem['scope'], MessageKey> = { global: 'common.global', project: 'common.project', local: 'common.private' };
 
 function KindIcon({ kind, className }: { kind: MemoryItem['kind']; className?: string }) {
-  if (kind === 'session') return <MessagesSquare className={className} />;
+  if (kind === 'session' || kind === 'handoff') return <MessagesSquare className={className} />;
   if (kind === 'auto-memory') return <BrainCircuit className={className} />;
   return <FileText className={className} />;
 }
@@ -66,7 +66,7 @@ function CardBody({ item, agents, dragging }: { item: MemoryItem; agents: AgentS
       <div className="flex items-start gap-2.5">
         <KindIcon kind={item.kind} className="mt-0.5 size-4 shrink-0 text-paper-dim" />
         <div className="min-w-0 flex-1">
-          <p className={cx('text-[13px] leading-5 font-medium', item.kind === 'session' ? 'line-clamp-2' : 'truncate')}>{item.title}</p>
+          <p className={cx('text-[13px] leading-5 font-medium', (item.kind === 'session' || item.kind === 'handoff') ? 'line-clamp-2' : 'truncate')}>{item.title}</p>
           <p className="mt-1 truncate font-mono text-[11px] leading-4 text-paper-mute" title={item.filePath}>
             {tildify(item.filePath)}
           </p>
@@ -75,6 +75,7 @@ function CardBody({ item, agents, dragging }: { item: MemoryItem; agents: AgentS
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         <Tag>{t(SCOPE_LABEL[item.scope])}</Tag>
+        {item.sourceAgent && <Tag>{t('board.fromAgent', { name: name(item.sourceAgent) })}</Tag>}
         {item.isSymlink && (
           <Tag title={t('board.symlinkTitle')}>
             <Link2 className="size-3" /> {t('board.link')}
@@ -89,7 +90,7 @@ function CardBody({ item, agents, dragging }: { item: MemoryItem; agents: AgentS
           </span>
         )}
         <span className="ml-auto flex items-center gap-2 text-[11px] whitespace-nowrap text-paper-mute">
-          {item.kind === 'session' && <span>{formatSize(item.size)}</span>}
+          {(item.kind === 'session' || item.kind === 'handoff') && <span>{formatSize(item.size)}</span>}
           <span>{relativeTime(item.mtimeMs)}</span>
         </span>
       </div>
@@ -216,7 +217,7 @@ function DraggableCard({
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-ink-700"
                 >
                   <AgentIcon agent={a.id} size={14} />
-                  {t(item.kind === 'session' ? 'board.handoffTo' : 'board.copyTo', { name: a.displayName })}
+                  {t((item.kind === 'session' || item.kind === 'handoff') ? 'board.handoffTo' : 'board.copyTo', { name: a.displayName })}
                 </button>
               ))}
             </div>
@@ -233,7 +234,7 @@ function hintFor(item: MemoryItem | null, agent: string): DropHint | null {
   if (!item) return null;
   if (item.agent === agent) return { kind: 'source' };
   if (item.alsoReadBy.includes(agent)) return { kind: 'native' };
-  return item.kind === 'session' ? { kind: 'handoff' } : { kind: 'copy' };
+  return (item.kind === 'session' || item.kind === 'handoff') ? { kind: 'handoff' } : { kind: 'copy' };
 }
 
 function SharedLayer({
