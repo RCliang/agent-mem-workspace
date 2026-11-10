@@ -3,6 +3,7 @@ import { upsertBlock } from './blocks.js';
 import { tildify, type Context } from './context.js';
 import { idFor, readText } from './fsutil.js';
 import type { Hub } from './hub.js';
+import { completeChat, readLlmFile, resolveLlm } from './llm-config.js';
 import { plannedWrite, type Plan } from './plan.js';
 import { mergeFindings, redact } from './redact.js';
 import { parseSessionFile } from './sessions.js';
@@ -78,29 +79,14 @@ const HANDOFF_SYSTEM =
   '(Goal, Follow-up requests, Files changed, Commands run, Latest status, Next steps). Keep the first heading and the quoted provenance line unchanged. ' +
   'State decisions, open problems and concrete next steps. Never include secrets.';
 
-/** Calls an OpenAI-compatible chat endpoint configured through AGENT_MEM_LLM_* env vars. */
+/** Calls the OpenAI-compatible endpoint from the API page, with AGENT_MEM_LLM_* overriding it. */
 export async function llmSummarize(ctx: Context, draft: string, transcript: string, system = HANDOFF_SYSTEM): Promise<string> {
-  const key = ctx.env.AGENT_MEM_LLM_API_KEY;
-  if (!key) throw new Error('Set AGENT_MEM_LLM_API_KEY (and optionally AGENT_MEM_LLM_BASE_URL / AGENT_MEM_LLM_MODEL) to use LLM summaries');
-  const base = (ctx.env.AGENT_MEM_LLM_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = ctx.env.AGENT_MEM_LLM_MODEL ?? 'gpt-4o-mini';
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: `Draft:\n${draft}\n\nTranscript:\n${transcript}` },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`LLM request failed: ${res.status} ${await res.text().catch(() => '')}`);
-  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const text = json.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error('LLM returned an empty summary');
-  return text + '\n';
+  const resolved = resolveLlm(ctx, await readLlmFile(ctx));
+  const text = await completeChat(resolved, [
+    { role: 'system', content: system },
+    { role: 'user', content: `Draft:\n${draft}\n\nTranscript:\n${transcript}` },
+  ]);
+  return text.endsWith('\n') ? text : `${text}\n`;
 }
 
 /** Agents installed here that can run one-shot prompts through their own CLI. */

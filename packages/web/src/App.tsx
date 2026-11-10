@@ -1,6 +1,7 @@
-import { History as HistoryIcon, LayoutGrid, Menu, Moon, Puzzle, RefreshCw, Search, Sun, Table2, X } from 'lucide-react';
+import { History as HistoryIcon, LayoutGrid, Menu, Moon, Plug2, Puzzle, RefreshCw, Search, Sun, Table2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, subscribe, type AgentSummary, type BackupEntry, type Info, type MatrixRow, type MemoryItem, type ProjectInfo, type ShareStrategy, type SkillItem, type SkillLibrary } from './api';
+import { ApiSettings } from './components/ApiSettings';
 import { Board } from './components/Board';
 import { EditorDrawer } from './components/EditorDrawer';
 import { History } from './components/History';
@@ -14,7 +15,7 @@ import { useToast } from './components/Toasts';
 import { useI18n, type MessageKey } from './i18n';
 import { Button, cx, InfoContext } from './ui';
 
-type View = 'board' | 'skills' | 'matrix' | 'history';
+type View = 'board' | 'skills' | 'matrix' | 'history' | 'api';
 type Theme = 'dark' | 'light';
 
 function SlidingToggle({
@@ -59,6 +60,7 @@ const VIEWS: { id: View; label: MessageKey; icon: typeof LayoutGrid }[] = [
   { id: 'skills', label: 'app.skills', icon: Puzzle },
   { id: 'matrix', label: 'app.matrix', icon: Table2 },
   { id: 'history', label: 'app.history', icon: HistoryIcon },
+  { id: 'api', label: 'app.api', icon: Plug2 },
 ];
 
 const STORAGE_KEY = 'agent-mem:project';
@@ -513,7 +515,7 @@ export function App() {
             onShowAllAgents={showAllAgents}
           />
           <main className="min-w-0 flex-1 overflow-hidden">
-            {project === undefined && !loadError && <div className="m-4 h-40 animate-pulse rounded-lg bg-ink-900" />}
+            {project === undefined && !loadError && view !== 'api' && <div className="m-4 h-40 animate-pulse rounded-lg bg-ink-900" />}
             {loadError && <p className="m-4 border-l-2 border-danger bg-danger/8 px-4 py-3 text-[13px] text-danger">{t('app.loadError', { message: loadError })}</p>}
             {project !== undefined && view === 'board' && (
               <Board
@@ -557,6 +559,7 @@ export function App() {
                 }
               />
             )}
+            {view === 'api' && <ApiSettings onInfo={setInfo} />}
           </main>
           {openItem && openItem.kind !== 'session' && (
             <EditorDrawer

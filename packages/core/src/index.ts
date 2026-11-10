@@ -8,6 +8,7 @@ export * from './share-store.js';
 export * from './share.js';
 export * from './transfer.js';
 export * from './handoff.js';
+export * from './llm-config.js';
 export * from './bundle.js';
 export * from './skills.js';
 export * from './redact.js';

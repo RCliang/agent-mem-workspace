@@ -323,4 +323,52 @@ describe('watcher', () => {
       await watcher.close();
     }
   }, 15000);
+
+  it('saves a custom API without returning the key, and keeps the key when a later save omits it', async () => {
+    const { call, ctx, hub } = await makeApp();
+    const secret = 'sk-test-secret-value-1234';
+    const saved = await call('PUT', '/api/llm', { baseUrl: 'http://127.0.0.1:11434/v1', model: 'qwen2.5', mode: 'api', apiKey: secret });
+    expect(saved.status).toBe(200);
+    expect(JSON.stringify(saved.json)).not.toContain(secret);
+    expect(saved.json.saved.hasKey).toBe(true);
+    expect(saved.json.saved.keyHint).toBe('1234');
+    expect(saved.json.saved.baseUrl).toBe('http://127.0.0.1:11434/v1');
+    expect(saved.json.saved.mode).toBe('api');
+    expect(fs.readFileSync(path.join(ctx.dataDir, 'llm.json'), 'utf8')).toContain(secret);
+
+    const kept = await call('PUT', '/api/llm', { model: 'qwen2.5-coder' });
+    expect(kept.status).toBe(200);
+    expect(kept.json.saved.hasKey).toBe(true);
+    expect(kept.json.saved.model).toBe('qwen2.5-coder');
+    expect(JSON.stringify(kept.json)).not.toContain(secret);
+
+    const cleared = await call('PUT', '/api/llm', { clearKey: true });
+    expect(cleared.json.saved.hasKey).toBe(false);
+    expect(fs.readFileSync(path.join(ctx.dataDir, 'llm.json'), 'utf8')).not.toContain(secret);
+
+    const bad = await call('PUT', '/api/llm', { baseUrl: 'ftp://files.example/v1' });
+    expect(bad.status).toBe(400);
+
+    hub.ctx.env.AGENT_MEM_LLM_API_KEY = 'env-secret-value-zzzz';
+    const overridden = await call('PUT', '/api/llm', { apiKey: 'file-secret-should-stay-out-9999' });
+    expect(overridden.json.env.apiKey).toBe(true);
+    expect(overridden.json.saved.hasKey).toBe(false);
+    expect(overridden.json.effective.hasKey).toBe(true);
+    expect(JSON.stringify(overridden.json)).not.toContain('env-secret-value-zzzz');
+    expect(fs.readFileSync(path.join(ctx.dataDir, 'llm.json'), 'utf8')).not.toContain('file-secret-should-stay-out-9999');
+
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const probed = await call('POST', '/api/llm/test', { apiKey: secret, baseUrl: 'http://llm.test/v1', model: 'probe-model' });
+      expect(probed.status).toBe(200);
+      expect(probed.json).toEqual({ model: 'probe-model', reply: 'ok' });
+      expect(JSON.stringify(probed.json)).not.toContain(secret);
+      const init = fetchMock.mock.calls[0]?.[1] as { headers: { authorization: string }; body: string };
+      expect(init.headers.authorization).toBe(`Bearer ${secret}`);
+      expect(JSON.parse(init.body).model).toBe('probe-model');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
