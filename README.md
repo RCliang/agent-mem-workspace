@@ -22,19 +22,22 @@ https://github.com/user-attachments/assets/52437a36-500a-4212-ae2a-017e961e6925
 
 ## Quick start
 
-Requires **Node.js 22.13.0+**. This opens a local web app:
-
-```bash
-npx --yes @liangstech/agent-mem@latest ui
-```
-
-Want to look around first? Start a demo sandbox:
+Try the demo from npm with **Node.js 22.13.0 or later**.
 
 ```bash
 npx @liangstech/agent-mem ui --demo
 ```
 
-`--demo` uses a throwaway directory and never reads your real agent data.
+If npm asks to install the package, enter `y`. The demo uses temporary sample data. If the browser does not open automatically, visit [http://127.0.0.1:4477](http://127.0.0.1:4477).
+
+To use the `agent-mem` command directly, install it globally.
+
+```bash
+npm install -g @liangstech/agent-mem
+agent-mem ui --demo
+```
+
+To work with your real agent data, run `agent-mem ui` after a global install, or `npx @liangstech/agent-mem ui`.
 
 > The server binds to `127.0.0.1` only. No account required. Session summaries use locally installed agent CLIs by default, with no separate API key needed. Model requests are handled by your chosen CLI or configured endpoint.
 

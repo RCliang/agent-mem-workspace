@@ -24,19 +24,22 @@ https://github.com/user-attachments/assets/35be245a-d86e-4f83-8438-97e660956099
 
 ## 快速开始
 
-需要 **Node.js 22.13.0+**。运行后会打开本地网页。
-
-```bash
-npx --yes @liangstech/agent-mem@latest ui
-```
-
-想先看看界面，可以使用演示沙盒：
+需要 **Node.js 22.13.0 或更高版本**。打开终端，运行下面的命令。`npx` 会从 npm 下载并启动演示。
 
 ```bash
 npx @liangstech/agent-mem ui --demo
 ```
 
-`--demo` 使用一次性临时目录，不读取你的真实 agent 数据。
+如果 npm 询问是否安装，输入 `y` 并回车。演示使用临时示例数据。浏览器没有自动打开时，访问 [http://127.0.0.1:4477](http://127.0.0.1:4477)。
+
+如果想以后直接使用 `agent-mem` 命令，可以全局安装。
+
+```bash
+npm install -g @liangstech/agent-mem
+agent-mem ui --demo
+```
+
+要管理本机的真实 agent 数据，全局安装后运行 `agent-mem ui`，也可以直接运行 `npx @liangstech/agent-mem ui`。
 
 > 服务只监听 `127.0.0.1`，无需注册账号。会话摘要默认调用本机 agent CLI，无需单独配置 API Key；模型请求由所选 CLI 或你配置的接口处理。
 
