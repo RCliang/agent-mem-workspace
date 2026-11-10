@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyPlan, declarativeAdapter, encodeClaudeProject, llmLocalSummarizers, planTransfer, type AgentAdapter, type AgentCli, type Context } from '@agent-mem/core';
+import { applyPlan, declarativeAdapter, encodeClaudeProject, llmLocalSummarizers, planTransfer, updateLlmSettings, type AgentAdapter, type AgentCli, type Context } from '@agent-mem/core';
 import { read, setup } from './helpers.js';
 
 const now = new Date('2026-10-23T08:00:00Z');
@@ -124,6 +124,24 @@ describe('handoff', () => {
     expect(doc).not.toContain('## Next steps');
     expect(doc).not.toContain('## Goal');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses a key saved on the API page when the environment has none', async () => {
+    const { hub, project } = await setup();
+    await updateLlmSettings(hub.ctx, {
+      apiKey: 'saved-key-1234567890',
+      baseUrl: 'http://saved.local/v1',
+      model: 'saved-model',
+      mode: 'api',
+    });
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: '# from saved' } }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const s = await session(hub, project, 'pi');
+    const plan = await planTransfer(hub, s, 'claude-code', { render: 'summary', now });
+    expect(fetchMock).toHaveBeenCalledWith('http://saved.local/v1/chat/completions', expect.anything());
+    const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as { body: string }).body) as { model: string };
+    expect(body.model).toBe('saved-model');
+    expect(plan.writes[0]?.after).toBe('# from saved\n');
   });
 
   it('rejects a preview that does not choose verbatim or summary', async () => {

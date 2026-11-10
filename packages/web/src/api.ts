@@ -10,6 +10,23 @@ export interface SkillLibrary {
 
 export type SkillDetail = SkillItem & { skillMd: { content: string; hash: string } };
 
+export type LlmMode = 'auto' | 'local' | 'api';
+
+export interface LlmEndpointView {
+  baseUrl: string;
+  model: string;
+  mode: LlmMode;
+  hasKey: boolean;
+  keyHint: string;
+}
+
+export interface LlmSettings {
+  saved: LlmEndpointView;
+  effective: LlmEndpointView;
+  env: { baseUrl: boolean; model: boolean; mode: boolean; apiKey: boolean };
+  defaults: { baseUrl: string; model: string };
+}
+
 export interface Info {
   home: string;
   dataDir: string;
@@ -47,6 +64,9 @@ const q = (project: string | null) => (project ? `?project=${encodeURIComponent(
 
 export const api = {
   info: () => request<Info>('GET', '/api/info'),
+  llm: () => request<LlmSettings>('GET', '/api/llm'),
+  saveLlm: (body: { baseUrl?: string; model?: string; mode?: LlmMode; apiKey?: string; clearKey?: boolean }) => request<LlmSettings>('PUT', '/api/llm', body),
+  testLlm: (body: { baseUrl?: string; model?: string; apiKey?: string }) => request<{ model: string; reply: string }>('POST', '/api/llm/test', body),
   agents: () => request<AgentSummary[]>('GET', '/api/agents'),
   projects: () => request<ProjectInfo[]>('GET', '/api/projects'),
   addProject: (path: string) => request<ProjectInfo[]>('POST', '/api/projects', { path }),

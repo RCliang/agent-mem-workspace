@@ -52,6 +52,7 @@ Working memory is different. Sessions are per-agent JSONL transcripts and cannot
 - **Search**: the top bar filters Board cards, matrix rows and Skills cards by title, path or content (`/` to focus, Esc to clear).
 - **Share matrix**: one row per memory, one column per agent. Click an empty cell to grant access; agents already reading the file show a solid check and cannot be toggled.
 - **History**: every write is backed up first and can be undone individually.
+- **API**: set the OpenAI-compatible endpoint used when a handoff summary cannot use a local agent CLI. The key is written to `~/.agent-mem/llm.json` and is not returned to the page.
 - **Projects / Agents sidebar**: projects are auto-discovered from session logs, or added manually via a native folder picker and removable from the list; the Agents section toggles Board and matrix columns per agent (stored in the browser; newly installed agents default to visible). The whole sidebar collapses to give the board more room.
 - **Theme & language**: the UI ships in English and Chinese, with dark and light themes; both are switchable from the top bar and remembered per browser.
 
@@ -142,7 +143,7 @@ Any tool that "reads some Markdown" needs no code change — DeepSeek Harness wa
 
 The agent counts as installed once `homeDir` exists. For more complex read logic, point `plugins` at an ESM module whose default export is `(ctx) => AgentAdapter`.
 
-Summaries default to local agent CLIs; to use a hosted endpoint, configure it through environment variables rather than flags so it never lands in shell history:
+Summaries default to local agent CLIs. A hosted endpoint can be saved on the API page, or set with environment variables so the secret never lands in shell history. Environment variables override the saved page:
 
 ```bash
 export AGENT_MEM_LLM_API_KEY=...

@@ -10,7 +10,12 @@ import {
   listShares,
   listSkills,
   llmLocalSummarizers,
+  llmSettingsView,
   parseSessionFile,
+  probeLlm,
+  readLlmFile,
+  resolveLlm,
+  updateLlmSettings,
   planShare,
   planSkillDelete,
   planSkillTransfer,
@@ -85,7 +90,20 @@ export function createApp({ hub, bus, webDist, allowedHosts = [] }: AppOptions) 
 
   api.get('/info', async (c) => {
     const local = await llmLocalSummarizers(hub);
-    return c.json({ home: hub.ctx.home, dataDir: hub.ctx.dataDir, llm: local.length > 0 || !!hub.ctx.env.AGENT_MEM_LLM_API_KEY, llmLocal: local });
+    const llm = resolveLlm(hub.ctx, await readLlmFile(hub.ctx));
+    return c.json({ home: hub.ctx.home, dataDir: hub.ctx.dataDir, llm: local.length > 0 || !!llm.apiKey, llmLocal: local });
+  });
+
+  api.get('/llm', async (c) => c.json(await llmSettingsView(hub.ctx)));
+
+  api.put('/llm', async (c) => {
+    const body = await c.req.json<{ baseUrl?: string; model?: string; mode?: string; apiKey?: string; clearKey?: boolean }>();
+    return c.json(await updateLlmSettings(hub.ctx, body));
+  });
+
+  api.post('/llm/test', async (c) => {
+    const body = await c.req.json<{ baseUrl?: string; model?: string; apiKey?: string }>().catch(() => ({}));
+    return c.json(await probeLlm(hub.ctx, body));
   });
 
   api.get('/agents', async (c) => c.json(await hub.agents()));

@@ -4,6 +4,7 @@ import { tildify } from './context.js';
 import { convertForTarget } from './convert.js';
 import { idFor, readText } from './fsutil.js';
 import { llmSummarize, planHandoff, summarizeSession } from './handoff.js';
+import { readLlmFile, resolveLlm } from './llm-config.js';
 import type { Hub } from './hub.js';
 import { plannedWrite, type Plan } from './plan.js';
 import { redact } from './redact.js';
@@ -160,7 +161,8 @@ async function refineDraft(
   transcript: string,
   kind: 'session' | 'document',
 ): Promise<{ text: string; notes: string[] }> {
-  const mode = hub.ctx.env.AGENT_MEM_LLM_MODE;
+  const resolved = resolveLlm(hub.ctx, await readLlmFile(hub.ctx));
+  const mode = resolved.mode;
   const notes: string[] = [];
   let text = draft;
   let refined = false;
@@ -173,7 +175,7 @@ async function refineDraft(
       notes.push(`Summary refined by ${hub.adapter(local.agentId).displayName} running locally through its own CLI.`);
     }
   }
-  if (!refined && mode !== 'local' && hub.ctx.env.AGENT_MEM_LLM_API_KEY) {
+  if (!refined && mode !== 'local' && resolved.apiKey) {
     try {
       text = await llmSummarize(hub.ctx, draft, transcript, kind === 'document' ? DOCUMENT_SYSTEM : undefined);
       refined = true;
@@ -187,8 +189,8 @@ async function refineDraft(
       kind === 'document'
         ? 'No model ran; the preview is the outline.'
         : mode === 'api'
-          ? 'AGENT_MEM_LLM_MODE=api and no AGENT_MEM_LLM_API_KEY set; used the rule-based summary.'
-          : 'No local agent CLI ran and no AGENT_MEM_LLM_API_KEY is set; used the rule-based summary.',
+          ? 'AGENT_MEM_LLM_MODE=api and no API key is saved or set in AGENT_MEM_LLM_API_KEY; used the rule-based summary.'
+          : 'No local agent CLI ran and no API key is saved or set in AGENT_MEM_LLM_API_KEY; used the rule-based summary.',
     );
   }
   return { text, notes };

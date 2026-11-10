@@ -44,6 +44,7 @@ The spacing scale, app type scale, easings, durations, glass and elevation varia
 - Skills: adaptive wrapping library panes with the same alignment and density as Board
 - Share matrix: sticky first column, horizontal rules and native/share states
 - History: chronological rows with the existing undo action and empty state
+- API: a single settings form for the OpenAI-compatible summary endpoint, with environment overrides shown as locked fields
 
 ## Motion
 - Character: brisk; motion communicates drag, drawer, dialog and toast state only
